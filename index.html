@@ -1267,7 +1267,7 @@
         // DATABASE ONLINE - GOOGLE APPS SCRIPT
         // Ganti URL di bawah dengan URL Web App Apps Script kamu.
         // ============================================================
-        const API_URL = 'https://script.google.com/macros/s/AKfycbwTF8vjnbk92HGFP6t8NPmubTysyCkwm4DCJwCdE9XQ7xvpC8hFLDtwWnA9_CE4XYBGCw/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwTF8jvnbk92HGFp6t8NPmubTysvCKwm4DCJwCdE9XQ7xvpC8hFLDtwVnA9_CE4YXBGw/exec';
 
         let cloudDBLoading = false;
         let cloudDBReady = false;
@@ -1432,37 +1432,60 @@
 
         async function saveDBToCloud(db) {
             const cloudDB = structuredClone(db);
-
-            // Jangan pernah menyimpan sesi login browser ke database pusat.
             cloudDB.currentUser = null;
 
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'text/plain;charset=utf-8'
-                },
-                body: JSON.stringify({
-                    action: 'saveDB',
-                    db: cloudDB
-                })
+            const payload = JSON.stringify({
+                action: 'saveDB',
+                db: cloudDB
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+            try {
+                // text/plain is a CORS "simple request" and avoids preflight.
+                // no-cors is intentional: the write is sent even when the
+                // browser does not expose the Apps Script response to JS.
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    keepalive: true,
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8'
+                    },
+                    body: payload
+                });
+
+                cloudDBReady = true;
+                console.log('Database dikirim ke Google Apps Script.');
+                return { success: true };
+
+            } catch (error) {
+                console.error('Fetch cloud gagal, mencoba sendBeacon:', error);
+
+                try {
+                    const blob = new Blob([payload], {
+                        type: 'text/plain;charset=utf-8'
+                    });
+
+                    const sent = navigator.sendBeacon(API_URL, blob);
+
+                    if (!sent) {
+                        throw new Error('sendBeacon tidak dapat mengirim data.');
+                    }
+
+                    cloudDBReady = true;
+                    console.log('Database dikirim menggunakan sendBeacon.');
+                    return { success: true };
+
+                } catch (beaconError) {
+                    cloudDBReady = false;
+                    console.error('Gagal mengirim database ke cloud:', beaconError);
+                    throw beaconError;
+                }
             }
-
-            const result = await response.json();
-
-            if (!result.success) {
-                throw new Error(result.message || 'Database gagal disimpan.');
-            }
-
-            cloudDBReady = true;
-            return result;
         }
 
         async function loadDBFromCloud() {
-            if (cloudDBLoading) return;
+            if (cloudDBLoading) return false;
 
             cloudDBLoading = true;
 
@@ -1487,18 +1510,18 @@
                     );
                 }
 
-                // Jika database cloud belum pernah dibuat,
-                // gunakan database lokal/default sebagai data awal.
+                // Server belum memiliki database.
+                // Hanya pada kondisi ini data lokal dijadikan data awal.
                 if (!result.exists || !result.db) {
                     const localDB = getDB();
                     await saveDBToCloud(localDB);
                     cloudDBReady = true;
-                    return;
+                    return true;
                 }
 
                 const cloudDB = normalizeDB(result.db);
 
-                // Pertahankan sesi login browser ini.
+                // currentUser adalah sesi browser ini, bukan data pusat.
                 const localData = localStorage.getItem(DB_KEY);
                 let localSession = null;
 
@@ -1519,14 +1542,31 @@
 
                 cloudDBReady = true;
 
+                console.log('DATABASE ONLINE berhasil dimuat dari Google Sheet.');
+                return true;
+
             } catch (error) {
+                cloudDBReady = false;
                 console.error('Gagal mengambil database cloud:', error);
 
-                // Jika server tidak tersedia, aplikasi masih bisa berjalan
-                // menggunakan cache lokal yang sudah ada.
-                cloudDBReady = false;
+                // Jangan membuat database cloud baru ketika GET gagal.
+                // Gunakan cache lokal hanya sebagai mode offline.
+                return false;
+
             } finally {
                 cloudDBLoading = false;
+            }
+        }
+
+        async function forceSyncToCloud() {
+            const db = getDB();
+
+            try {
+                await saveDBToCloud(db);
+                return true;
+            } catch (error) {
+                console.error('Force sync gagal:', error);
+                return false;
             }
         }
 
@@ -4688,8 +4728,7 @@
         window.addEventListener('DOMContentLoaded', async () => {
             applyTheme();
 
-            // Ambil database terbaru dari Google Spreadsheet
-            // sebelum dashboard ditampilkan.
+            // DATABASE ONLINE harus dimuat lebih dulu.
             await loadDBFromCloud();
 
             applyTheme();
