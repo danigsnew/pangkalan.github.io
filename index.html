@@ -1262,6 +1262,17 @@
 
     <script>
         const DB_KEY = 'lpg_distribution_db_v13_no_supplier';
+
+        // ============================================================
+        // DATABASE ONLINE - GOOGLE APPS SCRIPT
+        // Ganti URL di bawah dengan URL Web App Apps Script kamu.
+        // ============================================================
+        const API_URL = 'https://script.google.com/macros/s/AKfycbwjQ0jHVNN9Rj-bcTGNRnlyZSp0JdxsgUbM_tKCh7xV-SANhueKYBaiMC_aOWc4wXqJ7g/exec';
+
+        let cloudDBLoading = false;
+        let cloudDBReady = false;
+        let cloudSaveQueue = Promise.resolve();
+
         const HET_PEMERINTAH = 16000; // Harga Eceran Tertinggi Modal Pangkalan
         const HARGA_JUAL_STANDAR = 19000; // Harga Jual Standar Pangkalan ke Warung/Perorangan
 
@@ -1327,44 +1338,201 @@
             ]
         };
 
-        function getDB() {
-            const data = localStorage.getItem(DB_KEY);
-            let db = data ? JSON.parse(data) : defaultDB;
-            
-            if (!db.superAdminStock) db.superAdminStock = { isi3kg: 0, kosong3kg: 0 };
+        function normalizeDB(db) {
+            if (!db || typeof db !== 'object') db = {};
+
+            if (!db.superAdminStock) {
+                db.superAdminStock = { isi3kg: 0, kosong3kg: 0 };
+            }
             if (db.superAdminStock.isi3kg === undefined) db.superAdminStock.isi3kg = 0;
             if (db.superAdminStock.kosong3kg === undefined) db.superAdminStock.kosong3kg = 0;
-            if (!db.allocations) db.allocations = [];
-            if (!db.emptyReturnsToAgency) db.emptyReturnsToAgency = [];
-            if (!db.warungSales) db.warungSales = [];
-            if (!db.pangkalanStockAdjustments) db.pangkalanStockAdjustments = [];
-            
+
+            if (!Array.isArray(db.allocations)) db.allocations = [];
+            if (!Array.isArray(db.emptyReturnsToAgency)) db.emptyReturnsToAgency = [];
+            if (!Array.isArray(db.warungSales)) db.warungSales = [];
+            if (!Array.isArray(db.pangkalanStockAdjustments)) db.pangkalanStockAdjustments = [];
+            if (!Array.isArray(db.emptyAgencyReceipts)) db.emptyAgencyReceipts = [];
+            if (!Array.isArray(db.customers)) db.customers = [];
+            if (!Array.isArray(db.transactions)) db.transactions = [];
+            if (!Array.isArray(db.warungReports)) db.warungReports = [];
+            if (!Array.isArray(db.pangalans)) db.pangalans = [];
+
             if (db.customers) {
                 db.customers.forEach(c => {
-                    if (!c.username) c.username = c.name.toLowerCase().replace(/\s+/g, '');
+                    if (!c.username && c.name) {
+                        c.username = c.name.toLowerCase().replace(/\s+/g, '');
+                    }
                     if (!c.password) c.password = '123';
-                    if (!c.quotaMonthly) c.quotaMonthly = c.type === 'warung' ? 60 : 4;
+                    if (!c.quotaMonthly) {
+                        c.quotaMonthly = c.type === 'warung' ? 60 : 4;
+                    }
                 });
             }
+
             if (db.transactions) {
                 db.transactions.forEach(t => {
-                    if (t.qtyKosongDiambil === undefined) t.qtyKosongDiambil = t.qty3kg;
-                    if (!t.statusBayar) t.statusBayar = (t.bayar >= t.totalHarga) ? 'lunas' : 'belum_lunas';
+                    if (t.qtyKosongDiambil === undefined) {
+                        t.qtyKosongDiambil = t.qty3kg;
+                    }
+                    if (!t.statusBayar) {
+                        t.statusBayar =
+                            (Number(t.bayar || 0) >= Number(t.totalHarga || 0))
+                                ? 'lunas'
+                                : 'belum_lunas';
+                    }
                     if (t.bayar === undefined) t.bayar = t.totalHarga;
                 });
             }
+
             if (db.warungReports) {
                 db.warungReports.forEach(r => {
                     if (!r.status) r.status = 'processed';
                 });
             }
-            
-            if (!data) saveDB(db);
+
             return db;
         }
 
+        // Database lokal hanya digunakan sebagai cache/session browser.
+        // Database utama berada di Google Spreadsheet.
+        function getDB() {
+            const data = localStorage.getItem(DB_KEY);
+            let db;
+
+            if (data) {
+                try {
+                    db = JSON.parse(data);
+                } catch (error) {
+                    console.error('Cache database rusak:', error);
+                    db = structuredClone(defaultDB);
+                }
+            } else {
+                db = structuredClone(defaultDB);
+            }
+
+            return normalizeDB(db);
+        }
+
+        // Semua perubahan tetap langsung disimpan ke cache agar UI cepat,
+        // lalu dikirim ke Google Apps Script sebagai database pusat.
         function saveDB(db) {
+            normalizeDB(db);
+
+            // Session currentUser hanya boleh tersimpan di browser masing-masing.
             localStorage.setItem(DB_KEY, JSON.stringify(db));
+
+            cloudSaveQueue = cloudSaveQueue
+                .then(() => saveDBToCloud(db))
+                .catch(error => {
+                    console.error('Gagal menyimpan database ke cloud:', error);
+                });
+
+            return db;
+        }
+
+        async function saveDBToCloud(db) {
+            const cloudDB = structuredClone(db);
+
+            // Jangan pernah menyimpan sesi login browser ke database pusat.
+            cloudDB.currentUser = null;
+
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8'
+                },
+                body: JSON.stringify({
+                    action: 'saveDB',
+                    db: cloudDB
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.message || 'Database gagal disimpan.');
+            }
+
+            cloudDBReady = true;
+            return result;
+        }
+
+        async function loadDBFromCloud() {
+            if (cloudDBLoading) return;
+
+            cloudDBLoading = true;
+
+            try {
+                const response = await fetch(
+                    API_URL + '?action=getDB&_=' + Date.now(),
+                    {
+                        method: 'GET',
+                        cache: 'no-store'
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(
+                        result.message || 'Gagal mengambil database.'
+                    );
+                }
+
+                // Jika database cloud belum pernah dibuat,
+                // gunakan database lokal/default sebagai data awal.
+                if (!result.exists || !result.db) {
+                    const localDB = getDB();
+                    await saveDBToCloud(localDB);
+                    cloudDBReady = true;
+                    return;
+                }
+
+                const cloudDB = normalizeDB(result.db);
+
+                // Pertahankan sesi login browser ini.
+                const localData = localStorage.getItem(DB_KEY);
+                let localSession = null;
+
+                if (localData) {
+                    try {
+                        localSession = JSON.parse(localData)?.currentUser || null;
+                    } catch (e) {
+                        localSession = null;
+                    }
+                }
+
+                cloudDB.currentUser = localSession;
+
+                localStorage.setItem(
+                    DB_KEY,
+                    JSON.stringify(cloudDB)
+                );
+
+                cloudDBReady = true;
+
+            } catch (error) {
+                console.error('Gagal mengambil database cloud:', error);
+
+                // Jika server tidak tersedia, aplikasi masih bisa berjalan
+                // menggunakan cache lokal yang sudah ada.
+                cloudDBReady = false;
+            } finally {
+                cloudDBLoading = false;
+            }
+        }
+
+        async function refreshCloudDatabase() {
+            await loadDBFromCloud();
+            render();
         }
 
         function getPangkalanInventory(pangkalanId) {
@@ -4517,10 +4685,15 @@
         }
 
         // Initialize App on load
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
+            applyTheme();
+
+            // Ambil database terbaru dari Google Spreadsheet
+            // sebelum dashboard ditampilkan.
+            await loadDBFromCloud();
+
             applyTheme();
             render();
-            applyTheme();
         });
     </script>
 </body>
