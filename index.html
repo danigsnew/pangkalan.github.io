@@ -1431,13 +1431,28 @@
         }
 
         async function saveDBToCloud(db) {
-            const cloudDB = structuredClone(db);
-            cloudDB.currentUser = null;
+    const actor = db.currentUser
+        ? {
+            role: db.currentUser.role || null,
+            id: db.currentUser.id || null,
+            pangkalanId: db.currentUser.pangkalanId || null,
+            name: db.currentUser.name || null
+        }
+        : {
+            role: null,
+            id: null,
+            pangkalanId: null,
+            name: null
+        };
 
-            const payload = JSON.stringify({
-                action: 'saveDB',
-                db: cloudDB
-            });
+    const cloudDB = structuredClone(db);
+    cloudDB.currentUser = null;
+
+    const payload = JSON.stringify({
+        action: 'saveDB',
+        db: cloudDB,
+        actor: actor
+    });
 
             try {
                 // text/plain is a CORS "simple request" and avoids preflight.
