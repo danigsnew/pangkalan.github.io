@@ -2610,14 +2610,11 @@
                                 <i class="fa-solid fa-store"></i> Portal Sub-Pangkalan / Warung
                             </span>
                             <h2 class="text-2xl md:text-3xl font-bold mb-1">${user.name}</h2>
-                            <p class="text-amber-100 text-xs md:text-sm">Pantau persediaan gas di warung, catat penjualan eceran warga, & ajukan penukaran tabung kosong ke pangkalan.</p>
+                            <p class="text-amber-100 text-xs md:text-sm">Catat setiap penjualan warga. Sistem akan otomatis memperbarui posisi tabung isi dan kosong untuk dipantau Admin Pangkalan.</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-3">
                             <button onclick="openWarungRetailSaleModal()" class="px-4 py-3.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold rounded-2xl text-xs transition flex items-center gap-2">
                                 <i class="fa-solid fa-cart-shopping"></i> Catat Penjualan Eceran
-                            </button>
-                            <button onclick="openWarungReportModal()" class="px-5 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-2xl text-xs transition shadow-lg shadow-amber-500/20 flex items-center gap-2">
-                                <i class="fa-solid fa-paper-plane"></i> Minta Pasokan / Tukar Tabung
                             </button>
                         </div>
                     </div>
@@ -2656,43 +2653,7 @@
                         </div>
                     </div>
 
-                    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                <i class="fa-solid fa-clock-rotate-left text-amber-600"></i> Riwayat Laporan Permintaan Pasokan Anda
-                            </h3>
-                            <button onclick="openWarungReportModal()" class="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold rounded-xl text-xs transition border border-amber-200">
-                                + Minta Pasokan Baru
-                            </button>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-sm">
-                                <thead class="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase font-semibold">
-                                    <tr>
-                                        <th class="p-3.5">Tanggal Lapor</th>
-                                        <th class="p-3.5">Stok Isi Dilaporkan</th>
-                                        <th class="p-3.5">Kosong Siap Ditukar</th>
-                                        <th class="p-3.5">Status Pengolahan Pangkalan</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-100">
-                                    ${myReports.length === 0 ? `<tr><td colspan="4" class="p-6 text-center text-slate-400">Belum ada laporan diajukan.</td></tr>` : myReports.slice().reverse().map(r => `
-                                        <tr>
-                                            <td class="p-3.5 font-bold text-slate-800">${r.date}</td>
-                                            <td class="p-3.5 text-emerald-600 font-bold">${r.isi3kg} Unit</td>
-                                            <td class="p-3.5 text-amber-600 font-bold">${r.kosong3kg} Unit Kosong</td>
-                                            <td class="p-3.5">
-                                                ${r.status === 'processed' ? 
-                                                    '<span class="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-200"><i class="fa-solid fa-circle-check"></i> SELESAI DIPROSES (STOK PULIH)</span>' : 
-                                                    '<span class="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold border border-emerald-200 animate-pulse"><i class="fa-solid fa-spinner fa-spin"></i> MENUNGGU PANGKALAN</span>'}
-                                            </td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
+                    
                     <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
                         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                             <div>
@@ -5753,34 +5714,153 @@ function submitEditTransaction(e, trxId) {
             `);
         }
 
-        function submitWarungRetailSale(e) {
-            e.preventDefault();
-            const db = getDB();
-            const user = db.currentUser;
-            const qty = Number(document.getElementById('retailQty').value);
-            const note = document.getElementById('retailNote').value.trim() || 'Penjualan eceran warung';
+       function submitWarungRetailSale(e) {
+    e.preventDefault();
 
-            const inv = getWarungInventory(user.id);
-            if (qty > inv.estimasiStokIsiWarung) {
-                showAlert('Penjualan Gagal', `Stok isi warung tidak cukup! Sisa stok isi: ${inv.estimasiStokIsiWarung}`, 'error');
-                return;
-            }
+    const db = getDB();
+    const user = db.currentUser;
 
-            if (!db.warungSales) db.warungSales = [];
-            db.warungSales.push({
-                id: 'sale_' + Date.now(),
+    const qty = Math.max(
+        1,
+        Number(document.getElementById('retailQty')?.value || 0)
+    );
+
+    const note =
+        document.getElementById('retailNote')?.value.trim() ||
+        'Penjualan eceran warung';
+
+    const invSebelum = getWarungInventory(user.id);
+
+    if (qty > Number(invSebelum.estimasiStokIsiWarung || 0)) {
+        showAlert(
+            'Penjualan Gagal',
+            `Stok isi warung tidak cukup. Sisa stok isi: ${Number(invSebelum.estimasiStokIsiWarung || 0)} tabung.`,
+            'error'
+        );
+        return;
+    }
+
+    if (!db.warungSales) {
+        db.warungSales = [];
+    }
+
+    if (!db.warungReports) {
+        db.warungReports = [];
+    }
+
+    const now = new Date();
+    const saleId = 'sale_' + Date.now();
+
+    // 1. Catat penjualan eceran
+    db.warungSales.push({
+        id: saleId,
+        customerId: user.id,
+        pangkalanId: user.pangkalanId,
+        warungName: user.name,
+        date: now.toISOString().slice(0, 10),
+        createdAt: now.toISOString(),
+        qty: qty,
+        note: note
+    });
+
+    // 2. Hitung posisi stok setelah penjualan
+    const invSesudah = getWarungInventory(user.id);
+
+    const stokIsi =
+        Number(invSesudah.estimasiStokIsiWarung || 0);
+
+    const stokKosong =
+        Number(invSesudah.estimasiStokKosongWarung || 0);
+
+    /*
+     * 3. Ambang operasional.
+     *
+     * Untuk sementara:
+     * - kosong >= 5  → perlu perhatian
+     * - isi <= 3     → perlu perhatian
+     *
+     * Nilai ini bisa kita ubah nanti.
+     */
+    const ambangKosong = 5;
+    const ambangIsi = 3;
+
+    const perluTindakan =
+        stokKosong >= ambangKosong ||
+        stokIsi <= ambangIsi;
+
+    /*
+     * 4. Cari laporan otomatis yang masih pending
+     *    untuk warung ini.
+     *
+     * Kita UPDATE laporan yang sama,
+     * bukan membuat laporan baru terus-menerus.
+     */
+    let report = db.warungReports.find(r =>
+        r.customerId === user.id &&
+        r.pangkalanId === user.pangkalanId &&
+        r.status === 'pending' &&
+        r.source === 'auto_retail_sale'
+    );
+
+    if (perluTindakan) {
+
+        if (!report) {
+            report = {
+                id: 'rep_auto_' + Date.now(),
+                pangkalanId: user.pangkalanId,
                 customerId: user.id,
-                date: new Date().toISOString().slice(0, 10),
-                qty: qty,
-                note: note
-            });
+                warungName: user.name,
+                status: 'pending',
+                source: 'auto_retail_sale',
+                createdAt: now.toISOString()
+            };
 
-            saveDB(db);
-            closeModal();
-            showAlert('Penjualan Dicatat', `${qty} tabung isi terjual eceran (berubah menjadi tabung kosong).`);
-            render();
+            db.warungReports.push(report);
         }
 
+        report.date = now.toISOString().slice(0, 10);
+        report.stokIsiSaatLaporan = stokIsi;
+        report.stokKosongSaatLaporan = stokKosong;
+
+        report.ambangKosong = ambangKosong;
+        report.ambangIsi = ambangIsi;
+
+        report.lastSaleId = saleId;
+        report.lastSaleQty = qty;
+
+        report.isi3kg = stokIsi;
+        report.kosong3kg = stokKosong;
+
+        report.prioritas =
+            stokIsi <= 1 || stokKosong >= 10
+                ? 'tinggi'
+                : 'normal';
+
+        report.catatan =
+            `Otomatis dari penjualan warung. ` +
+            `Stok isi ${stokIsi} unit, ` +
+            `stok kosong ${stokKosong} unit.`;
+    }
+
+    // 5. Simpan ke database pusat
+    saveDB(db);
+
+    closeModal();
+
+    if (perluTindakan) {
+        showAlert(
+            'Penjualan Dicatat',
+            `${qty} tabung terjual. Posisi warung sekarang ${stokIsi} isi dan ${stokKosong} kosong. Admin Pangkalan menerima pemberitahuan otomatis.`
+        );
+    } else {
+        showAlert(
+            'Penjualan Dicatat',
+            `${qty} tabung terjual. Stok isi ${stokIsi}, stok kosong ${stokKosong}.`
+        );
+    }
+
+    render();
+}
         function getWarungTransactionPrice(customerId) {
             const db = getDB();
             const trxs = (db.transactions || [])
