@@ -1672,8 +1672,11 @@ async function processCloudSave() {
             // dikurangi yang sudah disetor ke agen, ditambah stok kosong yang
             // dikembalikan ke pangkalan ketika histori warung dihapus.
             const totalKosongPenyesuaian = (db.pangkalanStockAdjustments || [])
-                .filter(a => a.pangkalanId === pangkalanId)
-                .reduce((s, a) => s + Number(a.emptyQty || 0), 0);
+                    .filter(a =>
+                    a.pangkalanId === pangkalanId &&
+                    a.source !== 'warung_deleted'
+                    )
+                    .reduce((s, a) => s + Number(a.emptyQty || 0), 0);
 
             const stokKosongFisik = Math.max(
                 0,
@@ -4475,17 +4478,7 @@ function saveEditedAllocations(pId) {
                 !(a.source === 'warung_deleted' && a.sourceId === customerId)
             );
 
-            if (kosongKembali > 0) {
-                db.pangkalanStockAdjustments.push({
-                    id: 'adj_empty_' + Date.now(),
-                    pangkalanId: pangId,
-                    source: 'warung_deleted',
-                    sourceId: customerId,
-                    date: new Date().toISOString().slice(0, 10),
-                    emptyQty: kosongKembali,
-                    note: `Stok kosong ${warungName} dikembalikan ke pangkalan saat warung dihapus`
-                });
-            }
+            
 
             const isWarungRecord = (record) => {
                 const recordCustomerId = record.customerId ?? record.warungId ?? record.customer_id ?? record.warung_id;
