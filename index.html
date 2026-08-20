@@ -2410,80 +2410,142 @@ function stopAdminCloudAutoRefresh() {
                     </div>
 
                     <div class="desktop-span-6 bg-white rounded-3xl border border-amber-200 shadow-sm overflow-hidden">
-                        <div class="bg-amber-50/60 p-6 border-b border-amber-100 flex justify-between items-center">
-                            <div>
-                                <h3 class="text-lg font-bold text-amber-900 flex items-center gap-2">
-                                    <i class="fa-solid fa-bell text-amber-600"></i> Permintaan Penukaran / Pasokan dari Warung
-                                </h3>
-                                <p class="text-xs text-amber-700 mt-1">Laporan warung yang memerlukan pengambilan tabung kosong & pengiriman pasokan gas isi.</p>
-                            </div>
-                        </div>
-                        <div class="p-0 overflow-x-auto">
-                            <table class="w-full text-left text-sm">
-                                <thead class="bg-white border-b border-slate-100 text-xs text-slate-500 uppercase font-semibold">
-                                    <tr>
-                                        <th class="p-4 pl-6">Tanggal & Warung</th>
-                                        <th class="p-4">Stok Isi Warung Saat Ini</th>
-                                        <th class="p-4 text-amber-700">Tabung Kosong Siap Ditukar</th>
-                                        <th class="p-4 pr-6 text-right">Tindakan Admin</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-100">
-                                    ${pendingReports.length === 0 ? `
-                                        <tr><td colspan="4" class="p-8 text-center text-slate-400 font-medium"><i class="fa-solid fa-circle-check text-emerald-400 text-2xl block mb-2"></i>Semua permintaan warung telah selesai ditindaklanjuti.</td></tr>
-                                    ` : pendingReports.map(r => {
-    const liveInv = getWarungInventory(r.customerId);
 
-    const stokIsiSekarang =
-        Number(liveInv.estimasiStokIsiWarung || 0);
+    <div class="bg-amber-50/60 p-6 border-b border-amber-100 flex justify-between items-center">
+        <div>
+            <h3 class="text-lg font-bold text-amber-900 flex items-center gap-2">
+                <i class="fa-solid fa-bell text-amber-600"></i>
+                Permintaan Penukaran / Pasokan dari Warung
+            </h3>
 
-    const stokKosongSekarang =
-        Number(liveInv.estimasiStokKosongWarung || 0);
+            <p class="text-xs text-amber-700 mt-1">
+                Warung yang sudah mencapai ambang operasional dan perlu ditindaklanjuti.
+            </p>
+        </div>
+    </div>
 
-    return `
-        <tr class="hover:bg-amber-50/30 transition">
+    <div class="p-0 overflow-x-auto">
+        <table class="w-full text-left text-sm">
 
-            <td class="p-4 pl-6">
-                <p class="font-bold text-slate-800 text-base">
-                    ${r.warungName}
-                </p>
+            <thead class="bg-white border-b border-slate-100 text-xs text-slate-500 uppercase font-semibold">
+                <tr>
+                    <th class="p-4 pl-6">
+                        Tanggal & Warung
+                    </th>
 
-                <p class="text-xs text-slate-400">
-                    <i class="fa-regular fa-clock"></i>
-                    ${r.date || '-'}
-                </p>
-            </td>
+                    <th class="p-4">
+                        Stok Isi Warung Saat Ini
+                    </th>
 
-            <td class="p-4">
-                <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold">
-                    ${stokIsiSekarang} Unit Isi
-                </span>
-            </td>
+                    <th class="p-4 text-amber-700">
+                        Tabung Kosong Siap Ditukar
+                    </th>
 
-            <td class="p-4">
-                <span class="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-sm font-bold border border-amber-200">
-                    ${stokKosongSekarang} Tabung Kosong
-                </span>
-            </td>
+                    <th class="p-4 pr-6 text-right">
+                        Tindakan Admin
+                    </th>
+                </tr>
+            </thead>
 
-            <td class="p-4 pr-6 text-right">
-                <button
-                    onclick="openTindakLanjutModal('${r.id}')"
-                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center justify-end gap-2 ml-auto">
-                    Proses Penukaran & Tagihan
-                    <i class="fa-solid fa-arrow-right"></i>
-                </button>
-            </td>
+            <tbody class="divide-y divide-slate-100">
 
-        </tr>
-    `;
-}).join('')}
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                ${
+                    pendingReports.length === 0
+                        ? `
+                            <tr>
+                                <td
+                                    colspan="4"
+                                    class="p-8 text-center text-slate-400 font-medium"
+                                >
+                                    <i class="fa-solid fa-circle-check text-emerald-400 text-2xl block mb-2"></i>
+
+                                    Semua permintaan warung telah selesai
+                                    atau belum mencapai ambang tindakan.
+                                </td>
+                            </tr>
+                        `
+                        : pendingReports.map(r => {
+
+                            const liveInv =
+                                getWarungInventory(r.customerId);
+
+                            const stokIsiSekarang =
+                                Number(
+                                    liveInv.estimasiStokIsiWarung || 0
+                                );
+
+                            const stokKosongSekarang =
+                                Number(
+                                    liveInv.estimasiStokKosongWarung || 0
+                                );
+
+                            const prioritas =
+                                stokIsiSekarang <= 1 ||
+                                stokKosongSekarang >= 10;
+
+                            return `
+                                <tr class="hover:bg-amber-50/30 transition">
+
+                                    <td class="p-4 pl-6">
+                                        <p class="font-bold text-slate-800 text-base">
+                                            ${r.warungName || 'Warung'}
+                                        </p>
+
+                                        <p class="text-xs text-slate-400">
+                                            <i class="fa-regular fa-clock"></i>
+                                            ${r.date || '-'}
+                                        </p>
+
+                                        ${
+                                            prioritas
+                                                ? `
+                                                    <span class="inline-flex mt-2 px-2 py-1 bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-bold">
+                                                        PRIORITAS
+                                                    </span>
+                                                `
+                                                : `
+                                                    <span class="inline-flex mt-2 px-2 py-1 bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[10px] font-bold">
+                                                        PERLU TINDAKAN
+                                                    </span>
+                                                `
+                                        }
+                                    </td>
+
+                                    <td class="p-4">
+                                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-100">
+                                            ${stokIsiSekarang} Unit Isi
+                                        </span>
+                                    </td>
+
+                                    <td class="p-4">
+                                        <span class="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-sm font-bold border border-amber-200">
+                                            ${stokKosongSekarang} Tabung Kosong
+                                        </span>
+                                    </td>
+
+                                    <td class="p-4 pr-6 text-right">
+                                        <button
+                                            type="button"
+                                            onclick="openTindakLanjutModal('${r.id}')"
+                                            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-md inline-flex items-center justify-end gap-2"
+                                        >
+                                            Proses Penukaran & Tagihan
+
+                                            <i class="fa-solid fa-arrow-right"></i>
+                                        </button>
+                                    </td>
+
+                                </tr>
+                            `;
+                        }).join('')
+                }
+
+            </tbody>
+
+        </table>
+    </div>
+
+</div>
 
                     <div class="desktop-span-6 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
