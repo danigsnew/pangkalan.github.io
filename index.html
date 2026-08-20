@@ -4049,9 +4049,23 @@ function saveEditedAllocations(pId) {
         function openTindakLanjutModal(reportId) {
             const db = getDB();
             const report = db.warungReports.find(r => r.id === reportId);
+            const liveInv = getWarungInventory(report.customerId);
+
+const stokKosongTerbaru =
+    Number(liveInv.estimasiStokKosongWarung || 0);
+
+const stokIsiTerbaru =
+    Number(liveInv.estimasiStokIsiWarung || 0);
             if (!report) return;
 
             const cust = db.customers.find(c => c.id === report.customerId);
+            const liveInv = getWarungInventory(report.customerId);
+
+            const stokKosongTerbaru =
+                Number(liveInv.estimasiStokKosongWarung || 0);
+            
+            const jumlahTukar =
+                Math.max(0, stokKosongTerbaru);
             const usedQuota = cust ? getCustomerMonthlyUsage(cust.id) : 0;
             const maxQuota = cust ? cust.quotaMonthly : 60;
 
@@ -4074,8 +4088,11 @@ function saveEditedAllocations(pId) {
                 )
                 : HARGA_JUAL_STANDAR;
 
-            const totalAwal = Number(report.kosong3kg || 0) * hargaPertama;
+            const jumlahTukar =
+    Math.max(0, stokKosongTerbaru);
 
+const totalAwal =
+    jumlahTukar * hargaPertama;
             showModal(
                 'Proses Penukaran & Suplai Warung',
                 `Konfirmasi penukaran tabung kosong & status pembayaran untuk ${report.warungName}`,
@@ -4111,14 +4128,27 @@ function saveEditedAllocations(pId) {
                         <div class="grid grid-cols-2 gap-4">
                             <div class="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
                                 <label class="block text-[11px] font-bold text-emerald-800 uppercase mb-2">Tabung Isi Suplai Dikirim</label>
-                                <input type="number" id="tlKirimIsi" min="0" value="${Math.max(0, Number(report.kosong3kg || 0))}" oninput="calcTLTotal()"
-                                    class="w-full px-3 py-2 bg-white border border-emerald-200 rounded-xl text-sm font-bold text-emerald-900">
+                                <input
+    type="number"
+    id="tlKirimIsi"
+    min="0"
+    value="${jumlahTukar}"
+    readonly
+    class="w-full px-3 py-2 bg-slate-100 border border-emerald-200 rounded-xl text-sm font-bold text-emerald-900 cursor-not-allowed"
+>
                                 <p id="tlIsiHelp" class="text-[10px] text-emerald-700 mt-1">Jumlah isi yang dikirim ke warung.</p>
                             </div>
                             <div class="bg-amber-50/60 p-4 rounded-2xl border border-amber-100">
                                 <label class="block text-[11px] font-bold text-amber-800 uppercase mb-2">Tabung Kosong Ditarik Pangkalan</label>
-                                <input type="number" id="tlTarikKosong" min="0" value="${Math.max(0, Number(report.kosong3kg || 0))}" required
-                                    class="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-sm font-bold text-amber-900">
+                                <input
+    type="number"
+    id="tlTarikKosong"
+    min="0"
+    value="${jumlahTukar}"
+    readonly
+    required
+    class="w-full px-3 py-2 bg-slate-100 border border-amber-200 rounded-xl text-sm font-bold text-amber-900 cursor-not-allowed"
+>
                             </div>
                         </div>
 
