@@ -5933,21 +5933,36 @@ function submitEditTransaction(e, trxId) {
     const db = getDB();
     const user = db.currentUser;
 
+    if (!user || user.role !== 'warung') {
+        showAlert(
+            'Akses Ditolak',
+            'Akun Warung tidak ditemukan.',
+            'error'
+        );
+        return;
+    }
+
     const qty = Math.max(
         1,
-        Number(document.getElementById('retailQty')?.value || 0)
+        Number(
+            document.getElementById('retailQty')?.value || 0
+        )
     );
 
     const note =
         document.getElementById('retailNote')?.value.trim() ||
         'Penjualan eceran warung';
 
+    // Cek stok sebelum penjualan
     const invSebelum = getWarungInventory(user.id);
 
-    if (qty > Number(invSebelum.estimasiStokIsiWarung || 0)) {
+    const stokIsiSebelum =
+        Number(invSebelum.estimasiStokIsiWarung || 0);
+
+    if (qty > stokIsiSebelum) {
         showAlert(
             'Penjualan Gagal',
-            `Stok isi warung tidak cukup. Sisa stok isi: ${Number(invSebelum.estimasiStokIsiWarung || 0)} tabung.`,
+            `Stok isi warung tidak cukup. Sisa stok isi: ${stokIsiSebelum} tabung.`,
             'error'
         );
         return;
@@ -5964,7 +5979,9 @@ function submitEditTransaction(e, trxId) {
     const now = new Date();
     const saleId = 'sale_' + Date.now();
 
-    // 1. Catat penjualan eceran
+    // =========================================================
+    // 1. SIMPAN PENJUALAN WARUNG
+    // =========================================================
     db.warungSales.push({
         id: saleId,
         customerId: user.id,
@@ -5976,7 +5993,9 @@ function submitEditTransaction(e, trxId) {
         note: note
     });
 
-    // 2. Hitung posisi stok setelah penjualan
+    // =========================================================
+    // 2. HITUNG STOK TERBARU SETELAH PENJUALAN
+    // =========================================================
     const invSesudah = getWarungInventory(user.id);
 
     const stokIsi =
@@ -5985,15 +6004,9 @@ function submitEditTransaction(e, trxId) {
     const stokKosong =
         Number(invSesudah.estimasiStokKosongWarung || 0);
 
-    /*
-     * 3. Ambang operasional.
-     *
-     * Untuk sementara:
-     * - kosong >= 5  → perlu perhatian
-     * - isi <= 3     → perlu perhatian
-     *
-     * Nilai ini bisa kita ubah nanti.
-     */
+    // =========================================================
+    // 3. AMBANG OTOMATIS
+    // =========================================================
     const ambangKosong = 5;
     const ambangIsi = 3;
 
@@ -6001,20 +6014,19 @@ function submitEditTransaction(e, trxId) {
         stokKosong >= ambangKosong ||
         stokIsi <= ambangIsi;
 
-    /*
-     * 4. Cari laporan otomatis yang masih pending
-     *    untuk warung ini.
-     *
-     * Kita UPDATE laporan yang sama,
-     * bukan membuat laporan baru terus-menerus.
-     */
+    // =========================================================
+    // 4. CARI PERMINTAAN AKTIF WARUNG INI
+    //    HANYA SATU PERMINTAAN PENDING PER WARUNG
+    // =========================================================
     let report = db.warungReports.find(r =>
         r.customerId === user.id &&
         r.pangkalanId === user.pangkalanId &&
-        r.status === 'pending' &&
-        r.source === 'auto_retail_sale'
+        r.status === 'pending'
     );
 
+    // =========================================================
+    // 5. BUAT / PERBARUI PERMINTAAN OTOMATIS
+    // =========================================================
     if (perluTindakan) {
 
         if (!report) {
@@ -6023,52 +6035,92 @@ function submitEditTransaction(e, trxId) {
                 pangkalanId: user.pangkalanId,
                 customerId: user.id,
                 warungName: user.name,
+
                 status: 'pending',
+
                 source: 'auto_retail_sale',
-                createdAt: now.toISOString()
+
+                createdAt: now.toISOString(),
+                date: now.toISOString().slice(0, 10),
+
+                lastSaleId: saleId,
+                lastSaleQty: qty,
+
+                isi3kg: stokIsi,
+                kosong3kg: stokKosong,
+
+                stokIsiSaatLaporan: stokIsi,
+                stokKosongSaatLaporan: stokKosong,
+
+                ambangIsi: ambangIsi,
+                ambangKosong: ambangKosong,
+
+                prioritas:
+                    stokIsi <= 1 || stokKosong >= 10
+                        ? 'tinggi'
+                        : 'normal',
+
+                catatan:
+                    `Otomatis dari penjualan Warung. ` +
+                    `Stok isi ${stokIsi} unit, ` +
+                    `stok kosong ${stokKosong} unit.`
             };
 
             db.warungReports.push(report);
+
+        } else {
+            // Perbarui permintaan aktif yang sama
+            report.date = now.toISOString().slice(0, 10);
+
+            report.lastSaleId = saleId;
+            report.lastSaleQty = qty;
+
+            report.isi3kg = stokIsi;
+            report.kosong3kg = stokKosong;
+
+            report.stokIsiSaatLaporan = stokIsi;
+            report.stokKosongSaatLaporan = stokKosong;
+
+            report.ambangIsi = ambangIsi;
+            report.ambangKosong = ambangKosong;
+
+            report.prioritas =
+                stokIsi <= 1 || stokKosong >= 10
+                    ? 'tinggi'
+                    : 'normal';
+
+            report.catatan =
+                `Diperbarui otomatis dari penjualan Warung. ` +
+                `Stok isi ${stokIsi} unit, ` +
+                `stok kosong ${stokKosong} unit.`;
         }
-
-        report.date = now.toISOString().slice(0, 10);
-        report.stokIsiSaatLaporan = stokIsi;
-        report.stokKosongSaatLaporan = stokKosong;
-
-        report.ambangKosong = ambangKosong;
-        report.ambangIsi = ambangIsi;
-
-        report.lastSaleId = saleId;
-        report.lastSaleQty = qty;
-
-        report.isi3kg = stokIsi;
-        report.kosong3kg = stokKosong;
-
-        report.prioritas =
-            stokIsi <= 1 || stokKosong >= 10
-                ? 'tinggi'
-                : 'normal';
-
-        report.catatan =
-            `Otomatis dari penjualan warung. ` +
-            `Stok isi ${stokIsi} unit, ` +
-            `stok kosong ${stokKosong} unit.`;
     }
 
-    // 5. Simpan ke database pusat
+    // =========================================================
+    // 6. SIMPAN DATABASE
+    // =========================================================
     saveDB(db);
 
     closeModal();
 
+    // =========================================================
+    // 7. PESAN KE WARUNG
+    // =========================================================
     if (perluTindakan) {
+
         showAlert(
             'Penjualan Dicatat',
-            `${qty} tabung terjual. Posisi warung sekarang ${stokIsi} isi dan ${stokKosong} kosong. Admin Pangkalan menerima pemberitahuan otomatis.`
+            `${qty} tabung terjual. ` +
+            `Stok sekarang ${stokIsi} isi dan ${stokKosong} kosong. ` +
+            `Pangkalan akan menerima permintaan otomatis.`
         );
+
     } else {
+
         showAlert(
             'Penjualan Dicatat',
-            `${qty} tabung terjual. Stok isi ${stokIsi}, stok kosong ${stokKosong}.`
+            `${qty} tabung terjual. ` +
+            `Stok sekarang ${stokIsi} isi dan ${stokKosong} kosong.`
         );
     }
 
