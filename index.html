@@ -4473,6 +4473,41 @@ function saveEditedAllocations(pId) {
     );
 }
 
+        function resetDeletedWarungAdjustments() {
+    const db = getDB();
+    const pangId = db.currentUser?.pangkalanId;
+
+    if (!pangId) {
+        showAlert(
+            'Gagal',
+            'Pangkalan aktif tidak ditemukan.',
+            'error'
+        );
+        return;
+    }
+
+    const sebelum =
+        (db.pangkalanStockAdjustments || []).length;
+
+    db.pangkalanStockAdjustments =
+        (db.pangkalanStockAdjustments || []).filter(a =>
+            !(
+                a.source === 'warung_deleted' &&
+                a.pangkalanId === pangId
+            )
+        );
+
+    const sesudah =
+        db.pangkalanStockAdjustments.length;
+
+    saveDB(db);
+    render();
+
+    showAlert(
+        'Penyesuaian Dibersihkan',
+        `${sebelum - sesudah} data penyesuaian akibat penghapusan Warung telah dihapus.`
+    );
+}
        function deleteWarung(customerId) {
     const db = getDB();
     const pangId = db.currentUser?.pangkalanId;
