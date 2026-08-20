@@ -4448,203 +4448,44 @@ function saveEditedAllocations(pId) {
             );
         }
 
-        function resetDeletedWarungAdjustments() {
-    const db = getDB();
-    const pangId = db.currentUser?.pangkalanId;
+        function deleteWarung(customerId) {
+            const db = getDB();
+            const pangId = db.currentUser?.pangkalanId;
 
-    if (!Array.isArray(db.pangkalanStockAdjustments)) {
-        db.pangkalanStockAdjustments = [];
-    }
-
-    db.pangkalanStockAdjustments =
-        db.pangkalanStockAdjustments.filter(a =>
-            !(
-                a.source === 'warung_deleted' &&
-                a.pangkalanId === pangId
-            )
-        );
-
-    saveDB(db);
-    render();
-
-    showAlert(
-        'Stok Dikembalikan',
-        'Penyesuaian stok akibat penghapusan Warung telah dibersihkan. Stok kosong pangkalan kembali dihitung dari histori yang masih aktif.'
-    );
-}
-
-        function resetDeletedWarungAdjustments() {
-    const db = getDB();
-    const pangId = db.currentUser?.pangkalanId;
-
-    if (!pangId) {
-        showAlert(
-            'Gagal',
-            'Pangkalan aktif tidak ditemukan.',
-            'error'
-        );
-        return;
-    }
-
-    const sebelum =
-        (db.pangkalanStockAdjustments || []).length;
-
-    db.pangkalanStockAdjustments =
-        (db.pangkalanStockAdjustments || []).filter(a =>
-            !(
-                a.source === 'warung_deleted' &&
-                a.pangkalanId === pangId
-            )
-        );
-
-    const sesudah =
-        db.pangkalanStockAdjustments.length;
-
-    saveDB(db);
-    render();
-
-    showAlert(
-        'Penyesuaian Dibersihkan',
-        `${sebelum - sesudah} data penyesuaian akibat penghapusan Warung telah dihapus.`
-    );
-}
-       function deleteWarung(customerId) {
-    const db = getDB();
-    const pangId = db.currentUser?.pangkalanId;
-
-    const index = db.customers.findIndex(c =>
-        c.id === customerId &&
-        c.pangkalanId === pangId &&
-        c.type === 'warung'
-    );
-
-    if (index === -1) return;
-
-    const warung = db.customers[index];
-    const warungName = String(warung.name || '').trim();
-
-    const inv = getWarungInventory(customerId);
-
-    const isiKembali =
-        Number(inv.estimasiStokIsiWarung || 0);
-
-    const kosongKembali =
-        Number(inv.estimasiStokKosongWarung || 0);
-
-    /*
-     * Hapus seluruh adjustment yang sebelumnya dibuat
-     * karena penghapusan Warung.
-     *
-     * Adjustment tersebut tidak diperlukan lagi karena
-     * seluruh histori Warung juga akan dihapus.
-     */
-    db.pangkalanStockAdjustments =
-        (db.pangkalanStockAdjustments || []).filter(a =>
-            !(
-                a.source === 'warung_deleted' &&
-                (
-                    a.sourceId === customerId ||
-                    a.pangkalanId === pangId
-                )
-            )
-        );
-
-    /*
-     * Identifikasi seluruh data milik Warung.
-     */
-    const isWarungRecord = (record) => {
-
-        const recordCustomerId =
-            record.customerId ??
-            record.warungId ??
-            record.customer_id ??
-            record.warung_id;
-
-        const recordName = String(
-            record.warungName ??
-            record.customerName ??
-            record.warung ??
-            record.customer ??
-            ''
-        ).trim();
-
-        return (
-            recordCustomerId === customerId ||
-            (
-                record.pangkalanId === pangId &&
-                recordName === warungName
-            )
-        );
-    };
-
-    /*
-     * Hapus seluruh histori Warung.
-     */
-    db.warungSales =
-        (db.warungSales || [])
-            .filter(s => !isWarungRecord(s));
-
-    db.warungReports =
-        (db.warungReports || [])
-            .filter(r => !isWarungRecord(r));
-
-    db.transactions =
-        (db.transactions || [])
-            .filter(t => !isWarungRecord(t));
-
-    if (db.payments) {
-        db.payments =
-            db.payments.filter(
-                p => !isWarungRecord(p)
+            const index = db.customers.findIndex(c =>
+                c.id === customerId &&
+                c.pangkalanId === pangId &&
+                c.type === 'warung'
             );
-    }
+            if (index === -1) return;
 
-    if (db.debts) {
-        db.debts =
-            db.debts.filter(
-                d => !isWarungRecord(d)
+            const warung = db.customers[index];
+            const warungName = String(warung.name || '').trim();
+            const inv = getWarungInventory(customerId);
+
+            const isiKembali = Number(inv.estimasiStokIsiWarung || 0);
+            const kosongKembali = Number(inv.estimasiStokKosongWarung || 0);
+
+            // Histori akan dihapus, sehingga stok kosong yang masih berada
+            // di warung harus dicatat sebagai adjustment permanen di pangkalan.
+            if (!db.pangkalanStockAdjustments) db.pangkalanStockAdjustments = [];
+
+            // Bersihkan adjustment lama untuk warung ini agar tidak double count.
+            db.pangkalanStockAdjustments = db.pangkalanStockAdjustments.filter(a =>
+                !(a.source === 'warung_deleted' && a.sourceId === customerId)
             );
-    }
 
-    if (db.customerTransactions) {
-        db.customerTransactions =
-            db.customerTransactions.filter(
-                t => !isWarungRecord(t)
-            );
-    }
-
-    /*
-     * Hapus Warung dari daftar pelanggan.
-     */
-    db.customers.splice(index, 1);
-
-    /*
-     * Jika akun Warung sedang aktif, keluarkan sesi.
-     */
-    if (
-        db.currentUser?.role === 'warung' &&
-        db.currentUser.id === customerId
-    ) {
-        db.currentUser = null;
-    }
-
-    /*
-     * Simpan database.
-     */
-    saveDB(db);
-
-    closeModal();
-
-    showAlert(
-        'Warung Dihapus',
-        `${warungName} berhasil dihapus. ` +
-        `${isiKembali} tabung isi dan ` +
-        `${kosongKembali} tabung kosong dari histori Warung ` +
-        `telah dibersihkan. Stok pangkalan kembali mengikuti alokasi.`
-    );
-
-    render();
-}
+            if (kosongKembali > 0) {
+                db.pangkalanStockAdjustments.push({
+                    id: 'adj_empty_' + Date.now(),
+                    pangkalanId: pangId,
+                    source: 'warung_deleted',
+                    sourceId: customerId,
+                    date: new Date().toISOString().slice(0, 10),
+                    emptyQty: kosongKembali,
+                    note: `Stok kosong ${warungName} dikembalikan ke pangkalan saat warung dihapus`
+                });
+            }
 
             const isWarungRecord = (record) => {
                 const recordCustomerId = record.customerId ?? record.warungId ?? record.customer_id ?? record.warung_id;
