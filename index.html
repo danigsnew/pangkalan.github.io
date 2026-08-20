@@ -1271,7 +1271,9 @@
 
         let cloudDBLoading = false;
         let cloudDBReady = false;
-        let cloudSaveQueue = Promise.resolve();
+        let cloudSaveTimer = null;
+let cloudSaveInFlight = false;
+let cloudSavePending = null;
 
         const HET_PEMERINTAH = 16000; // Harga Eceran Tertinggi Modal Pangkalan
         const HARGA_JUAL_STANDAR = 19000; // Harga Jual Standar Pangkalan ke Warung/Perorangan
@@ -1416,19 +1418,62 @@
         // Semua perubahan tetap langsung disimpan ke cache agar UI cepat,
         // lalu dikirim ke Google Apps Script sebagai database pusat.
         function saveDB(db) {
-            normalizeDB(db);
+    normalizeDB(db);
 
-            // Session currentUser hanya boleh tersimpan di browser masing-masing.
-            localStorage.setItem(DB_KEY, JSON.stringify(db));
+    // Simpan langsung ke cache lokal agar UI tetap cepat.
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
 
-            cloudSaveQueue = cloudSaveQueue
-                .then(() => saveDBToCloud(db))
-                .catch(error => {
-                    console.error('Gagal menyimpan database ke cloud:', error);
-                });
+    // Simpan hanya snapshot TERBARU.
+    // Jika user melakukan beberapa perubahan cepat,
+    // snapshot lama akan digantikan snapshot terbaru.
+    cloudSavePending = structuredClone(db);
 
-            return db;
+    clearTimeout(cloudSaveTimer);
+
+    cloudSaveTimer = setTimeout(() => {
+        processCloudSave();
+    }, 300);
+
+    return db;
+}
+
+
+async function processCloudSave() {
+    cloudSaveTimer = null;
+
+    // Jangan kirim request baru jika request sebelumnya masih berjalan.
+    if (cloudSaveInFlight) {
+        return;
+    }
+
+    if (!cloudSavePending) {
+        return;
+    }
+
+    const dbToSend = cloudSavePending;
+    cloudSavePending = null;
+
+    cloudSaveInFlight = true;
+
+    try {
+        await saveDBToCloud(dbToSend);
+    } catch (error) {
+        console.error(
+            'Gagal menyimpan database terbaru ke cloud:',
+            error
+        );
+    } finally {
+        cloudSaveInFlight = false;
+
+        // Jika selama request berlangsung ada perubahan baru,
+        // kirim snapshot terbaru setelah request selesai.
+        if (cloudSavePending) {
+            cloudSaveTimer = setTimeout(() => {
+                processCloudSave();
+            }, 100);
         }
+    }
+}
 
         async function saveDBToCloud(db) {
     const actor = db.currentUser
@@ -1905,22 +1950,104 @@
             saveDB(db); showAlert('Keluar Sesi', 'Anda telah keluar dari sistem.'); render();
         }
 
-        function render() {
-            const db = getDB();
-            const app = document.getElementById('app');
+        let adminCloudRefreshTimer = null;
+let adminCloudRefreshRunning = false;
 
-            if (!db.currentUser) {
-                app.innerHTML = renderLoginScreen();
-            } else if (db.currentUser.role === 'superadmin') {
-                app.innerHTML = renderDashboardLayout('Super Admin Pusat', 'superadmin', renderSuperAdminDashboard());
-            } else if (db.currentUser.role === 'admin') {
-                app.innerHTML = renderDashboardLayout('Admin Pangkalan', 'admin', renderAdminDashboard());
-            } else if (db.currentUser.role === 'warung') {
-                app.innerHTML = renderDashboardLayout('Portal Warung', 'warung', renderWarungDashboard());
-            } else if (db.currentUser.role === 'perorangan') {
-                app.innerHTML = renderDashboardLayout('Portal Perorangan', 'perorangan', renderPeroranganDashboard());
-            }
+
+function startAdminCloudAutoRefresh() {
+    if (adminCloudRefreshTimer) {
+        return;
+    }
+
+    adminCloudRefreshTimer = setInterval(async () => {
+
+        const db = getDB();
+
+        // Hanya aktif untuk Admin Pangkalan.
+        if (db.currentUser?.role !== 'admin') {
+            stopAdminCloudAutoRefresh();
+            return;
         }
+
+        // Jangan jalankan sinkronisasi kedua sebelum yang pertama selesai.
+        if (adminCloudRefreshRunning) {
+            return;
+        }
+
+        adminCloudRefreshRunning = true;
+
+        try {
+            const berhasil = await loadDBFromCloud();
+
+            if (berhasil) {
+                render();
+            }
+
+        } catch (error) {
+            console.error(
+                'Auto refresh database admin gagal:',
+                error
+            );
+
+        } finally {
+            adminCloudRefreshRunning = false;
+        }
+
+    }, 3000);
+}
+
+
+function stopAdminCloudAutoRefresh() {
+    if (adminCloudRefreshTimer) {
+        clearInterval(adminCloudRefreshTimer);
+        adminCloudRefreshTimer = null;
+    }
+
+    adminCloudRefreshRunning = false;
+}
+
+        function render() {
+    const db = getDB();
+    const app = document.getElementById('app');
+
+    if (db.currentUser?.role === 'admin') {
+        startAdminCloudAutoRefresh();
+    } else {
+        stopAdminCloudAutoRefresh();
+    }
+
+    if (!db.currentUser) {
+        app.innerHTML = renderLoginScreen();
+
+    } else if (db.currentUser.role === 'superadmin') {
+        app.innerHTML = renderDashboardLayout(
+            'Super Admin Pusat',
+            'superadmin',
+            renderSuperAdminDashboard()
+        );
+
+    } else if (db.currentUser.role === 'admin') {
+        app.innerHTML = renderDashboardLayout(
+            'Admin Pangkalan',
+            'admin',
+            renderAdminDashboard()
+        );
+
+    } else if (db.currentUser.role === 'warung') {
+        app.innerHTML = renderDashboardLayout(
+            'Portal Warung',
+            'warung',
+            renderWarungDashboard()
+        );
+
+    } else if (db.currentUser.role === 'perorangan') {
+        app.innerHTML = renderDashboardLayout(
+            'Portal Perorangan',
+            'perorangan',
+            renderPeroranganDashboard()
+        );
+    }
+}
 
         function renderLoginScreen() {
             return `
