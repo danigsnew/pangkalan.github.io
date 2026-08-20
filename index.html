@@ -2431,19 +2431,53 @@ function stopAdminCloudAutoRefresh() {
                                 <tbody class="divide-y divide-slate-100">
                                     ${pendingReports.length === 0 ? `
                                         <tr><td colspan="4" class="p-8 text-center text-slate-400 font-medium"><i class="fa-solid fa-circle-check text-emerald-400 text-2xl block mb-2"></i>Semua permintaan warung telah selesai ditindaklanjuti.</td></tr>
-                                    ` : pendingReports.map(r => `
-                                        <tr class="hover:bg-amber-50/30 transition">
-                                            <td class="p-4 pl-6">
-                                                <p class="font-bold text-slate-800 text-base">${r.warungName}</p>
-                                                <p class="text-xs text-slate-400"><i class="fa-regular fa-clock"></i> ${r.date}</p>
-                                            </td>
-                                            <td class="p-4"><span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold">${r.isi3kg} Unit Isi</span></td>
-                                            <td class="p-4"><span class="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-sm font-bold border border-amber-200">${r.kosong3kg} Tabung Kosong</span></td>
-                                            <td class="p-4 pr-6 text-right">
-                                                <button onclick="openTindakLanjutModal('${r.id}')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center justify-end gap-2 ml-auto">
-                                                    Proses Penukaran & Tagihan <i class="fa-solid fa-arrow-right"></i>
-                                                </button>
-                                            </td>
+                                    ` : pendingReports.map(r => {
+    const liveInv = getWarungInventory(r.customerId);
+
+    const stokIsiSekarang =
+        Number(liveInv.estimasiStokIsiWarung || 0);
+
+    const stokKosongSekarang =
+        Number(liveInv.estimasiStokKosongWarung || 0);
+
+    return `
+        <tr class="hover:bg-amber-50/30 transition">
+
+            <td class="p-4 pl-6">
+                <p class="font-bold text-slate-800 text-base">
+                    ${r.warungName}
+                </p>
+
+                <p class="text-xs text-slate-400">
+                    <i class="fa-regular fa-clock"></i>
+                    ${r.date || '-'}
+                </p>
+            </td>
+
+            <td class="p-4">
+                <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold">
+                    ${stokIsiSekarang} Unit Isi
+                </span>
+            </td>
+
+            <td class="p-4">
+                <span class="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-sm font-bold border border-amber-200">
+                    ${stokKosongSekarang} Tabung Kosong
+                </span>
+            </td>
+
+            <td class="p-4 pr-6 text-right">
+                <button
+                    onclick="openTindakLanjutModal('${r.id}')"
+                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-md flex items-center justify-end gap-2 ml-auto">
+                    Proses Penukaran & Tagihan
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </td>
+
+        </tr>
+    `;
+}).join('')}
                                         </tr>
                                     `).join('')}
                                 </tbody>
