@@ -4472,95 +4472,11 @@ const totalAwal =
             );
         }
 
-        function submitEditWarung(e, customerId) {
+        async function submitEditWarung(e, customerId) {
             e.preventDefault();
+
             const db = getDB();
-            const pangId = db.currentUser?.pangkalanId;
-            const customer = db.customers.find(c =>
-                c.id === customerId &&
-                c.pangkalanId === pangId &&
-                (c.type === 'warung' || c.type === 'perorangan')
-            );
-            if (!customer) return;
-
-            customer.name = document.getElementById('editWarungName').value.trim();
-            customer.phone = document.getElementById('editWarungPhone')?.value.trim() || '';
-
-            if (customer.type === 'warung') {
-                const newUsername = document.getElementById('editWarungUsername').value.trim().toLowerCase();
-                const duplicate = db.customers.some(c =>
-                    c.id !== customerId &&
-                    c.pangkalanId === pangId &&
-                    c.type === 'warung' &&
-                    String(c.username || '').toLowerCase() === newUsername
-                );
-                if (duplicate) {
-                    showAlert('Gagal Menyimpan', 'Username warung sudah digunakan di pangkalan ini.', 'error');
-                    return;
-                }
-                customer.username = newUsername;
-                customer.password = document.getElementById('editWarungPassword').value.trim();
-            }
-
-            saveDB(db);
-            closeModal();
-            showAlert(
-                customer.type === 'perorangan' ? 'Pelanggan Diperbarui' : 'Warung Diperbarui',
-                `Data ${customer.name} berhasil diperbarui.`
-            );
-            render();
-        }
-
-        function confirmDeleteWarung(customerId) {
-            const db = getDB();
-            const actor = db.currentUser;
-            const pangId = db.currentUser?.pangkalanId;
-            const warung = db.customers.find(c =>
-                            c.id === customerId &&
-                            c.pangkalanId === pangId
-                        );
-            if (!warung) return;
-            const isPerorangan = warung.type === 'perorangan';
-
-            const inv = getWarungInventory(customerId);
-
-            showModal(
-                isPerorangan ? 'Hapus Pelanggan Perorangan' : 'Hapus Warung',
-                isPerorangan
-                                ? 'Pelanggan perorangan akan dihapus beserta histori transaksinya.'
-                                : 'Konfirmasi penghapusan warung dan pengembalian stok.',
-                'fa-triangle-exclamation',
-                'bg-rose-100 text-rose-600',
-                `
-                    <div class="space-y-4">
-                        <p class="text-xs text-slate-600">
-                            Warung akan dihapus dari daftar pangkalan. Stok fisik yang masih berada di warung akan dikembalikan ke stok pangkalan.
-                        </p>
-                        <div class="p-4 bg-rose-50 rounded-2xl border border-rose-200">
-                            <p class="font-bold text-rose-800">${warung.name}</p>
-                            <div class="grid grid-cols-2 gap-3 mt-3">
-                                <div class="bg-white rounded-xl p-3 border border-emerald-100">
-                                    <p class="text-[10px] text-slate-500 uppercase font-bold">Isi Kembali</p>
-                                    <p class="text-xl font-extrabold text-emerald-600">${inv.estimasiStokIsiWarung}</p>
-                                </div>
-                                <div class="bg-white rounded-xl p-3 border border-amber-100">
-                                    <p class="text-[10px] text-slate-500 uppercase font-bold">Kosong Kembali</p>
-                                    <p class="text-xl font-extrabold text-amber-600">${inv.estimasiStokKosongWarung}</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex gap-3">
-                            <button onclick="closeModal()" class="w-1/2 py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl">Batal</button>
-                            <button onclick="deleteWarung('${warung.id}')" class="w-1/2 py-3.5 bg-rose-600 text-white font-bold rounded-xl">Ya, Hapus Warung</button>
-                        </div>
-                    </div>
-                `
-            );
-        }
-
-        async function deleteWarung(customerId) {
-            const db = getDB();
-            const pangId = db.currentUser?.pangkalanId;
+            const pangId = String(db.currentUser?.pangkalanId || '');
 
             if (!pangId) {
                 showAlert('Gagal', 'Pangkalan aktif tidak ditemukan.', 'error');
@@ -4569,7 +4485,241 @@ const totalAwal =
 
             const customer = (db.customers || []).find(c =>
                 String(c.id) === String(customerId) &&
+                String(c.pangkalanId) === pangId &&
+                (c.type === 'warung' || c.type === 'perorangan')
+            );
+
+            if (!customer) {
+                showAlert('Gagal', 'Data pelanggan tidak ditemukan.', 'error');
+                return;
+            }
+
+            const name = document.getElementById('editWarungName')?.value.trim() || '';
+            const phone = document.getElementById('editWarungPhone')?.value.trim() || '';
+
+            if (!name) {
+                showAlert('Gagal', 'Nama wajib diisi.', 'error');
+                return;
+            }
+
+            const payloadData = {
+                name,
+                phone
+            };
+
+            if (customer.type === 'warung') {
+                const username = document.getElementById('editWarungUsername')?.value.trim().toLowerCase() || '';
+                const password = document.getElementById('editWarungPassword')?.value.trim() || '';
+
+                if (!username || !password) {
+                    showAlert('Gagal', 'Username dan password warung wajib diisi.', 'error');
+                    return;
+                }
+
+                const duplicate = (db.customers || []).some(c =>
+                    String(c.id) !== String(customerId) &&
+                    String(c.pangkalanId) === pangId &&
+                    c.type === 'warung' &&
+                    String(c.username || '').toLowerCase() === username
+                );
+
+                if (duplicate) {
+                    showAlert('Gagal Menyimpan', 'Username warung sudah digunakan di pangkalan ini.', 'error');
+                    return;
+                }
+
+                payloadData.username = username;
+                payloadData.password = password;
+            }
+
+            customerDeletionInProgress = true;
+            stopAdminCloudAutoRefresh();
+
+            try {
+                // Batalkan snapshot save lama agar tidak menimpa update customer.
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = null;
+                cloudSavePending = null;
+
+                const payload = JSON.stringify({
+                    action: 'updateCustomer',
+                    customerId: customer.id,
+                    pangkalanId: pangId,
+                    data: payloadData,
+                    actor: db.currentUser
+                        ? {
+                            role: db.currentUser.role || null,
+                            id: db.currentUser.id || null,
+                            pangkalanId: db.currentUser.pangkalanId || null,
+                            name: db.currentUser.name || null
+                        }
+                        : null
+                });
+
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8'
+                    },
+                    body: payload
+                });
+
+                // Tunggu penulisan Apps Script, lalu ambil database pusat.
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await loadDBFromCloud();
+
+                let cloudCustomer = (getDB().customers || []).find(c =>
+                    String(c.id) === String(customer.id) &&
+                    String(c.pangkalanId) === pangId
+                );
+
+                const isUpdated = cloudCustomer &&
+                    String(cloudCustomer.name || '') === name &&
+                    String(cloudCustomer.phone || '') === phone &&
+                    (
+                        customer.type !== 'warung' ||
+                        (
+                            String(cloudCustomer.username || '').toLowerCase() === payloadData.username &&
+                            String(cloudCustomer.password || '') === payloadData.password
+                        )
+                    );
+
+                // Satu percobaan ulang hanya jika data pusat belum berubah.
+                if (!isUpdated) {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        cache: 'no-store',
+                        headers: {
+                            'Content-Type': 'text/plain;charset=utf-8'
+                        },
+                        body: payload
+                    });
+
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    await loadDBFromCloud();
+
+                    cloudCustomer = (getDB().customers || []).find(c =>
+                        String(c.id) === String(customer.id) &&
+                        String(c.pangkalanId) === pangId
+                    );
+                }
+
+                const finalUpdated = cloudCustomer &&
+                    String(cloudCustomer.name || '') === name &&
+                    String(cloudCustomer.phone || '') === phone &&
+                    (
+                        customer.type !== 'warung' ||
+                        (
+                            String(cloudCustomer.username || '').toLowerCase() === payloadData.username &&
+                            String(cloudCustomer.password || '') === payloadData.password
+                        )
+                    );
+
+                if (!finalUpdated) {
+                    throw new Error('Perubahan belum tersimpan di database pusat.');
+                }
+
+                closeModal();
+                render();
+
+                showAlert(
+                    customer.type === 'perorangan'
+                        ? 'Pelanggan Diperbarui'
+                        : 'Warung Diperbarui',
+                    `Data ${name} berhasil disimpan.`
+                );
+
+            } catch (error) {
+                console.error('Gagal menyimpan customer:', error);
+                await loadDBFromCloud();
+                render();
+                showAlert(
+                    'Gagal Menyimpan',
+                    error.message || 'Perubahan gagal disimpan ke database pusat.',
+                    'error'
+                );
+            } finally {
+                customerDeletionInProgress = false;
+                startAdminCloudAutoRefresh();
+            }
+        }
+
+        function confirmDeleteWarung(customerId) {
+            const db = getDB();
+            const pangId = db.currentUser?.pangkalanId;
+
+            const customer = (db.customers || []).find(c =>
+                String(c.id) === String(customerId) &&
                 String(c.pangkalanId) === String(pangId)
+            );
+
+            if (!customer) {
+                showAlert('Gagal', 'Pelanggan tidak ditemukan.', 'error');
+                return;
+            }
+
+            const isPerorangan = customer.type === 'perorangan';
+            const inv = getWarungInventory(customerId);
+
+            showModal(
+                isPerorangan ? 'Hapus Pelanggan Perorangan' : 'Hapus Warung',
+                isPerorangan
+                    ? 'Pelanggan perorangan akan dihapus beserta histori transaksinya.'
+                    : 'Konfirmasi penghapusan warung dan penghapusan histori transaksinya.',
+                'fa-triangle-exclamation',
+                'bg-rose-100 text-rose-600',
+                `
+                    <div class="space-y-4">
+                        <p class="text-xs text-slate-600">
+                            ${isPerorangan
+                                ? 'Data pelanggan dan histori transaksinya akan dihapus.'
+                                : 'Data warung dan histori transaksinya akan dihapus dari pangkalan.'}
+                        </p>
+                        ${!isPerorangan ? `
+                        <div class="p-4 bg-rose-50 rounded-2xl border border-rose-200">
+                            <p class="font-bold text-rose-800">${customer.name}</p>
+                            <div class="grid grid-cols-2 gap-3 mt-3">
+                                <div class="bg-white rounded-xl p-3 border border-emerald-100">
+                                    <p class="text-[10px] text-slate-500 uppercase font-bold">Isi Tercatat</p>
+                                    <p class="text-xl font-extrabold text-emerald-600">${inv.estimasiStokIsiWarung}</p>
+                                </div>
+                                <div class="bg-white rounded-xl p-3 border border-amber-100">
+                                    <p class="text-[10px] text-slate-500 uppercase font-bold">Kosong Tercatat</p>
+                                    <p class="text-xl font-extrabold text-amber-600">${inv.estimasiStokKosongWarung}</p>
+                                </div>
+                            </div>
+                        </div>
+                        ` : `
+                        <div class="p-4 bg-rose-50 rounded-2xl border border-rose-200">
+                            <p class="font-bold text-rose-800">${customer.name}</p>
+                        </div>
+                        `}
+                        <div class="flex gap-3">
+                            <button onclick="closeModal()" class="w-1/2 py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl">Batal</button>
+                            <button onclick="deleteWarung('${customer.id}')" class="w-1/2 py-3.5 bg-rose-600 text-white font-bold rounded-xl">
+                                Ya, Hapus
+                            </button>
+                        </div>
+                    </div>
+                `
+            );
+        }
+
+        async function deleteWarung(customerId) {
+            const db = getDB();
+            const pangId = String(db.currentUser?.pangkalanId || '');
+
+            if (!pangId) {
+                showAlert('Gagal', 'Pangkalan aktif tidak ditemukan.', 'error');
+                return;
+            }
+
+            const customer = (db.customers || []).find(c =>
+                String(c.id) === String(customerId) &&
+                String(c.pangkalanId) === pangId
             );
 
             if (!customer) {
@@ -4581,7 +4731,7 @@ const totalAwal =
             stopAdminCloudAutoRefresh();
 
             try {
-                // Hentikan snapshot lama agar tidak menulis ulang customer yang sedang dihapus.
+                // Pastikan snapshot lama tidak bisa menghidupkan kembali data yang dihapus.
                 clearTimeout(cloudSaveTimer);
                 cloudSaveTimer = null;
                 cloudSavePending = null;
@@ -4614,16 +4764,15 @@ const totalAwal =
                     body: payload
                 });
 
-                // Beri waktu Apps Script menyelesaikan penulisan DATABASE!A1.
-                await new Promise(resolve => setTimeout(resolve, 700));
-
+                await new Promise(resolve => setTimeout(resolve, 500));
                 await loadDBFromCloud();
+
                 let cloudDB = getDB();
                 let masihAda = (cloudDB.customers || []).some(c =>
-                    String(c.id) === String(customer.id)
+                    String(c.id) === String(customer.id) &&
+                    String(c.pangkalanId) === pangId
                 );
 
-                // Retry satu kali jika GET pertama masih melihat data lama.
                 if (masihAda) {
                     await fetch(API_URL, {
                         method: 'POST',
@@ -4635,11 +4784,13 @@ const totalAwal =
                         body: payload
                     });
 
-                    await new Promise(resolve => setTimeout(resolve, 700));
+                    await new Promise(resolve => setTimeout(resolve, 500));
                     await loadDBFromCloud();
+
                     cloudDB = getDB();
                     masihAda = (cloudDB.customers || []).some(c =>
-                        String(c.id) === String(customer.id)
+                        String(c.id) === String(customer.id) &&
+                        String(c.pangkalanId) === pangId
                     );
                 }
 
@@ -4648,16 +4799,18 @@ const totalAwal =
                 }
 
                 closeModal();
+                render();
+
                 showAlert(
                     'Berhasil Dihapus',
                     `${customer.name} berhasil dihapus dari pangkalan.`
                 );
-                render();
 
             } catch (error) {
                 console.error('Gagal menghapus customer:', error);
                 await loadDBFromCloud();
                 render();
+
                 showAlert(
                     'Gagal',
                     error.message || 'Penghapusan gagal diproses ke database pusat.',
