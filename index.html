@@ -4644,9 +4644,51 @@ const totalAwal =
                 <form onsubmit="submitTransaction(event)" class="space-y-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Pilih Pelanggan / Warung</label>
-                        <select id="trxCustId" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800">
-                            ${customers.map(c => `<option value="${c.id}">${c.name} (${c.type.toUpperCase()})</option>`).join('')}
-                        </select>
+                        <select
+    id="trxCustId"
+    onchange="toggleTransactionBuyerMode()"
+    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800"
+>
+    ${customers.map(c =>
+        `<option value="${c.id}">
+            ${c.name} (${c.type === 'perorangan' ? 'PERORANGAN' : 'WARUNG'})
+        </option>`
+    ).join('')}
+
+    <option value="__perorangan_baru__">
+        + Pembeli Perorangan Baru
+    </option>
+</select>
+
+<div id="trxNewPersonBox" class="hidden mt-3 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+    <div class="mb-3">
+        <label class="block text-xs font-semibold text-slate-600 mb-1">
+            Nama Pembeli Perorangan
+        </label>
+        <input
+            type="text"
+            id="trxNewPersonName"
+            placeholder="Contoh: Budi"
+            class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800"
+        >
+    </div>
+
+    <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">
+            No. HP <span class="font-normal text-slate-400">(opsional)</span>
+        </label>
+        <input
+            type="text"
+            id="trxNewPersonPhone"
+            placeholder="08xxxxxxxxxx"
+            class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800"
+        >
+    </div>
+
+    <p class="text-[11px] text-blue-600 mt-2">
+        Pembeli perorangan tidak memiliki username dan password.
+    </p>
+</div>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -4700,6 +4742,30 @@ const totalAwal =
             `);
             calcTrxTotal();
         }
+
+        function toggleTransactionBuyerMode() {
+    const select = document.getElementById('trxCustId');
+    const box = document.getElementById('trxNewPersonBox');
+    const nameInput = document.getElementById('trxNewPersonName');
+
+    if (!select || !box || !nameInput) return;
+
+    const isNewPerson =
+        select.value === '__perorangan_baru__';
+
+    box.classList.toggle('hidden', !isNewPerson);
+    nameInput.required = isNewPerson;
+
+    if (!isNewPerson) {
+        nameInput.value = '';
+        const phoneInput =
+            document.getElementById('trxNewPersonPhone');
+
+        if (phoneInput) {
+            phoneInput.value = '';
+        }
+    }
+}
 
         function calcTrxTotal() {
             const qty = Number(document.getElementById('trxQty')?.value || 0);
@@ -4787,9 +4853,39 @@ const totalAwal =
             const pangId = db.currentUser.pangkalanId;
             const inv = getPangkalanInventory(pangId);
 
-            const custId = document.getElementById('trxCustId').value;
-            const cust = db.customers.find(c => c.id === custId);
-            if (!cust) return;
+           const custId = document.getElementById('trxCustId').value;
+
+let cust = db.customers.find(c => c.id === custId);
+
+if (custId === '__perorangan_baru__') {
+    const namaPerorangan =
+        document.getElementById('trxNewPersonName')?.value.trim();
+
+    const phonePerorangan =
+        document.getElementById('trxNewPersonPhone')?.value.trim() || '';
+
+    if (!namaPerorangan) {
+        showAlert(
+            'Data Belum Lengkap',
+            'Nama pembeli perorangan wajib diisi.',
+            'error'
+        );
+        return;
+    }
+
+    cust = {
+        id: 'cust_person_' + Date.now(),
+        pangkalanId: pangId,
+        name: namaPerorangan,
+        type: 'perorangan',
+        quotaMonthly: 4,
+        phone: phonePerorangan
+    };
+
+    
+            } else {
+                if (!cust) return;
+            }
 
             const qtyIsi = Number(document.getElementById('trxQty').value);
             const qtyKosong = Number(document.getElementById('trxQtyKosong').value);
@@ -4825,6 +4921,10 @@ const totalAwal =
                 showAlert('Pembayaran Gagal', 'Pilihan Bayar Nanti harus dicatat dengan pembayaran Rp 0.', 'error');
                 return;
             }
+
+            if (isNewPerorangan) {
+    db.customers.push(cust);
+}
 
             db.transactions.push({
                 id: 'trx_' + Date.now(),
