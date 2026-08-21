@@ -1268,6 +1268,10 @@
         // Ganti URL di bawah dengan URL Web App Apps Script kamu.
         // ============================================================
         const API_URL = 'https://script.google.com/macros/s/AKfycbw2h938VlYKfvORmXe1nhmBp-H144GJ3rqFy3y1z6qb7qM-Qe5cTOGj801tMYKu_pFS/exec';
+
+// Hindari request jaringan berulang saat file dibuka di Preview/iframe.
+// Di GitHub Pages (top-level page), database online tetap aktif.
+const IS_EMBEDDED_PREVIEW = window.top !== window.self;
         let cloudDBLoading = false;
         let cloudDBReady = false;
         let cloudSaveTimer = null;
@@ -1481,6 +1485,10 @@ async function processCloudSave() {
 }
 
         async function saveDBToCloud(db) {
+    if (IS_EMBEDDED_PREVIEW) {
+        return { success: true, skipped: true };
+    }
+
     const actor = db.currentUser
         ? {
             role: db.currentUser.role || null,
@@ -1550,6 +1558,7 @@ async function processCloudSave() {
         }
 
         async function loadDBFromCloud() {
+            if (IS_EMBEDDED_PREVIEW) return false;
             if (cloudDBLoading) return false;
 
             cloudDBLoading = true;
@@ -1963,6 +1972,8 @@ let adminCloudRefreshRunning = false;
 
 
 function startAdminCloudAutoRefresh() {
+    if (IS_EMBEDDED_PREVIEW) return;
+
     if (adminCloudRefreshTimer) {
         return;
     }
@@ -4465,7 +4476,7 @@ const totalAwal =
             render();
         }
 
-        async function deleteWarung(customerId) {
+        function confirmDeleteWarung(customerId) {
             const db = getDB();
             const actor = db.currentUser;
             const pangId = db.currentUser?.pangkalanId;
@@ -4512,9 +4523,8 @@ const totalAwal =
             );
         }
 
-        async function deleteWarung(customerId) {
+        function deleteWarung(customerId) {
     const db = getDB();
-    const actor = db.currentUser;
     const pangId = db.currentUser?.pangkalanId;
 
     if (!pangId) {
@@ -4643,22 +4653,23 @@ const totalAwal =
         db.currentUser = null;
     }
 
-   const deletePayload = {
-    action: 'deleteCustomer',
-    customerId,
-    pangkalanId: pangId,
-    actor
-};
+    /*
+     * Tandai ID customer yang dihapus agar backend pusat
+     * juga menghapusnya dan tidak mengembalikannya saat sync.
+     */
+    if (!Array.isArray(db.deletedCustomerIds)) {
+        db.deletedCustomerIds = [];
+    }
 
-try {
-    await fetch(API_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {
-            'Content-Type': 'text/plain;charset=utf-8'
-        },
-        body: JSON.stringify(deletePayload)
-    });
+    if (!db.deletedCustomerIds.includes(customerId)) {
+        db.deletedCustomerIds.push(customerId);
+    }
+
+    /*
+     * Gunakan jalur saveDB yang sudah dipakai aplikasi.
+     * saveDB menyimpan cache lokal + mengirim snapshot terbaru ke cloud.
+     */
+    saveDB(db);
 
     closeModal();
 
@@ -4668,20 +4679,7 @@ try {
     );
 
     render();
-
-
-} catch (error) {
-    console.error('Gagal menghapus customer:', error);
-
-    showAlert(
-        'Gagal',
-        'Penghapusan gagal dikirim ke database pusat.',
-        'error'
-    );
-} 
 }
-
-
 
         function openTransactionModal() {
             const db = getDB();
@@ -6500,8 +6498,11 @@ function submitEditTransaction(e, trxId) {
         window.addEventListener('DOMContentLoaded', async () => {
             applyTheme();
 
-            // DATABASE ONLINE harus dimuat lebih dulu.
-            await loadDBFromCloud();
+            // DATABASE ONLINE harus dimuat lebih dulu pada halaman GitHub Pages.
+            // Preview/iframe tidak melakukan request eksternal.
+            if (!IS_EMBEDDED_PREVIEW) {
+                await loadDBFromCloud();
+            }
 
             applyTheme();
             render();
