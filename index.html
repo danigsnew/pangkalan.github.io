@@ -1966,6 +1966,9 @@ function startAdminCloudAutoRefresh() {
     if (adminCloudRefreshTimer) {
         return;
     }
+    if (cloudSavePending || cloudSaveInFlight || cloudSaveTimer) {
+    return;
+    }
 
     adminCloudRefreshTimer = setInterval(async () => {
 
