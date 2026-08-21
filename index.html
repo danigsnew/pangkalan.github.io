@@ -4630,6 +4630,7 @@ const totalAwal =
      * Hapus Warung dari daftar pelanggan.
      */
     db.customers.splice(index, 1);
+    localStorage.setItem(DB_KEY, JSON.stringify(db));
 
     
     /*
