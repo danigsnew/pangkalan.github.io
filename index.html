@@ -2615,7 +2615,7 @@ function stopAdminCloudAutoRefresh() {
                                                             class="w-9 h-9 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 flex items-center justify-center">
                                                             <i class="fa-solid fa-pen"></i>
                                                         </button>
-                                                        <button onclick="confirmDeleteWarung('${c.id}')" title="Hapus Warung"
+                                                        <button onclick="if (confirm('Hapus ${c.type === 'perorangan' ? 'pelanggan perorangan' : 'warung'} ini?')) deleteWarung('${c.id}')"
                                                             class="w-9 h-9 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 flex items-center justify-center">
                                                             <i class="fa-solid fa-trash"></i>
                                                         </button>
