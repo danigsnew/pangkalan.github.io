@@ -4511,8 +4511,9 @@ const totalAwal =
             );
         }
 
-        function deleteWarung(customerId) {
+        async function deleteWarung(customerId) {
     const db = getDB();
+    const actor = db.currentUser;
     const pangId = db.currentUser?.pangkalanId;
 
     if (!pangId) {
@@ -4629,14 +4630,7 @@ const totalAwal =
      */
     db.customers.splice(index, 1);
 
-    if (!Array.isArray(db.deletedCustomerIds)) {
-    db.deletedCustomerIds = [];
-        }
-
-if (!db.deletedCustomerIds.includes(customerId)) {
-    db.deletedCustomerIds.push(customerId);
-        }
-
+    
     /*
      * Jangan biarkan sesi Warung ikut tersimpan.
      */
@@ -4647,17 +4641,43 @@ if (!db.deletedCustomerIds.includes(customerId)) {
         db.currentUser = null;
     }
 
-    saveDB(db);
+   const deletePayload = {
+    action: 'deleteCustomer',
+    customerId,
+    pangkalanId: pangId,
+    actor
+};
+
+try {
+    await fetch(API_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify(deletePayload)
+    });
 
     closeModal();
 
     showAlert(
-        'Warung Dihapus',
+        'Berhasil Dihapus',
         `${warungName} berhasil dihapus dari pangkalan.`
     );
 
     render();
+
+
+} catch (error) {
+    console.error('Gagal menghapus customer:', error);
+
+    showAlert(
+        'Gagal',
+        'Penghapusan gagal dikirim ke database pusat.',
+        'error'
+    );
 }
+
 
 
         function openTransactionModal() {
