@@ -4740,8 +4740,9 @@ const totalAwal =
                     <button type="submit" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow-md transition">Simpan Transaksi Penjualan</button>
                 </form>
             `);
-            calcTrxTotal();
-        }
+           calcTrxTotal();
+toggleTransactionBuyerMode();
+}
 
         function toggleTransactionBuyerMode() {
     const select = document.getElementById('trxCustId');
@@ -4855,23 +4856,27 @@ const totalAwal =
 
            const custId = document.getElementById('trxCustId').value;
 
-let cust = db.customers.find(c => c.id === custId);
+            const isNewPerorangan =
+             custId === '__perorangan_baru__';
 
-if (custId === '__perorangan_baru__') {
-    const namaPerorangan =
-        document.getElementById('trxNewPersonName')?.value.trim();
 
-    const phonePerorangan =
-        document.getElementById('trxNewPersonPhone')?.value.trim() || '';
-
-    if (!namaPerorangan) {
-        showAlert(
-            'Data Belum Lengkap',
-            'Nama pembeli perorangan wajib diisi.',
-            'error'
-        );
-        return;
-    }
+            let cust = db.customers.find(c => c.id === custId);
+            
+            if (custId === '__perorangan_baru__') {
+                const namaPerorangan =
+                    document.getElementById('trxNewPersonName')?.value.trim();
+            
+                const phonePerorangan =
+                    document.getElementById('trxNewPersonPhone')?.value.trim() || '';
+            
+                if (!namaPerorangan) {
+                    showAlert(
+                        'Data Belum Lengkap',
+                        'Nama pembeli perorangan wajib diisi.',
+                        'error'
+                    );
+                    return;
+                }
 
     cust = {
         id: 'cust_person_' + Date.now(),
