@@ -1966,13 +1966,15 @@ function startAdminCloudAutoRefresh() {
     if (adminCloudRefreshTimer) {
         return;
     }
-    if (cloudSavePending || cloudSaveInFlight || cloudSaveTimer) {
-    return;
-    }
+    
 
     adminCloudRefreshTimer = setInterval(async () => {
 
         const db = getDB();
+
+        if (cloudSavePending || cloudSaveInFlight || cloudSaveTimer) {
+                return;
+            }
 
         // Hanya aktif untuk Admin Pangkalan.
         if (db.currentUser?.role !== 'admin') {
