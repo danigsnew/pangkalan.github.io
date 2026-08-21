@@ -4465,10 +4465,11 @@ const totalAwal =
             render();
         }
 
-        function confirmDeleteWarung(customerId) {
+        async function deleteWarung(customerId) {
             const db = getDB();
+            const actor = db.currentUser;
             const pangId = db.currentUser?.pangkalanId;
-           const warung = db.customers.find(c =>
+            const warung = db.customers.find(c =>
                             c.id === customerId &&
                             c.pangkalanId === pangId
                         );
@@ -4676,6 +4677,7 @@ try {
         'Penghapusan gagal dikirim ke database pusat.',
         'error'
     );
+} 
 }
 
 
