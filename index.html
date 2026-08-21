@@ -1267,7 +1267,7 @@
         // DATABASE ONLINE - GOOGLE APPS SCRIPT
         // Ganti URL di bawah dengan URL Web App Apps Script kamu.
         // ============================================================
-        const API_URL = 'https://script.google.com/macros/s/AKfycbw2h938VlYKfvORmXe1nhmBp-H144GJ3rqFy3y1z6qb7qM-Qe5cTOGj801tMYKu_pFS/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyss8BxqBolTYpuOkawitXZ5DxMMiYFRuMvfMWMeHwyw2pPDGQaWmtX15-fFaJ-wVguPw/exec';
 
 // Hindari request jaringan berulang saat file dibuka di Preview/iframe.
 // Di GitHub Pages (top-level page), database online tetap aktif.
@@ -6142,14 +6142,19 @@ function submitEditTransaction(e, trxId) {
                 return;
             }
 
-            const name = document.getElementById('custName').value.trim();
-            const type = document.getElementById('custType').value;
-            const quota = Number(document.getElementById('custQuota').value);
-            const username = document.getElementById('custUsername').value.trim().toLowerCase();
-            const password = document.getElementById('custPassword').value.trim();
+            const name = document.getElementById('custName')?.value.trim() || '';
+            const type = document.getElementById('custType')?.value || 'warung';
+            const quota = Number(document.getElementById('custQuota')?.value || 0);
+            const username = document.getElementById('custUsername')?.value.trim().toLowerCase() || '';
+            const password = document.getElementById('custPassword')?.value.trim() || '';
 
             if (!name) {
                 showAlert('Gagal', 'Nama pelanggan wajib diisi.', 'error');
+                return;
+            }
+
+            if (!['warung', 'perorangan'].includes(type)) {
+                showAlert('Gagal', 'Tipe pelanggan tidak valid.', 'error');
                 return;
             }
 
@@ -6158,9 +6163,24 @@ function submitEditTransaction(e, trxId) {
                 return;
             }
 
+            const duplicateUsername = type === 'warung' && (db.customers || []).some(c =>
+                String(c.pangkalanId) === String(pangId) &&
+                c.type === 'warung' &&
+                String(c.username || '').trim().toLowerCase() === username
+            );
+
+            if (duplicateUsername) {
+                showAlert(
+                    'Gagal Menambahkan',
+                    `Username "${username}" sudah digunakan di pangkalan ini.`,
+                    'error'
+                );
+                return;
+            }
+
             const customer = {
                 id: 'cust_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-                pangkalanId: pangId,
+                pangkalanId: String(pangId),
                 name,
                 type,
                 quotaMonthly: quota > 0 ? quota : (type === 'warung' ? 60 : 4),
@@ -6169,47 +6189,77 @@ function submitEditTransaction(e, trxId) {
                 phone: '0812345678'
             };
 
+            // Jangan biarkan snapshot saveDB lama menimpa hasil penambahan.
+            stopAdminCloudAutoRefresh();
+            clearTimeout(cloudSaveTimer);
+            cloudSaveTimer = null;
+            cloudSavePending = null;
+
             try {
+                while (cloudSaveInFlight) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                const responseBody = JSON.stringify({
+                    action: 'addCustomer',
+                    customer,
+                    pangkalanId: String(pangId),
+                    actor: actor ? {
+                        role: actor.role || null,
+                        id: actor.id || null,
+                        pangkalanId: actor.pangkalanId || null,
+                        name: actor.name || null
+                    } : null
+                });
+
                 await fetch(API_URL, {
                     method: 'POST',
                     mode: 'no-cors',
                     cache: 'no-store',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({
-                        action: 'addCustomer',
-                        customer,
-                        pangkalanId: pangId,
-                        actor: actor ? {
-                            role: actor.role || null,
-                            id: actor.id || null,
-                            pangkalanId: actor.pangkalanId || null,
-                            name: actor.name || null
-                        } : null
-                    })
+                    body: responseBody
                 });
 
-                // Beri waktu Apps Script menulis DATABASE!A1, lalu baca ulang database pusat.
-                await new Promise(resolve => setTimeout(resolve, 700));
-                await loadDBFromCloud();
+                // Apps Script menulis DATABASE!A1 secara sinkron.
+                // Baca ulang database pusat dengan beberapa percobaan GET
+                // untuk menghindari cache/latensi sementara.
+                let saved = false;
+                let cloudDB = getDB();
 
-                const cloudDB = getDB();
-                const saved = (cloudDB.customers || []).some(c =>
-                    String(c.id) === String(customer.id) &&
-                    String(c.pangkalanId) === String(pangId)
-                );
+                for (let attempt = 0; attempt < 3 && !saved; attempt++) {
+                    await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 500 : 800));
+                    const loaded = await loadDBFromCloud();
+                    if (!loaded) continue;
+
+                    cloudDB = getDB();
+                    saved = (cloudDB.customers || []).some(c =>
+                        String(c.id) === String(customer.id) &&
+                        String(c.pangkalanId) === String(pangId)
+                    );
+                }
 
                 if (!saved) {
-                    throw new Error('Pelanggan baru belum ditemukan di database pusat.');
+                    throw new Error(
+                        `Pelanggan "${name}" belum terlihat pada pembacaan database pusat. ` +
+                        `Jika username "${username}" baru, cek Log eksekusi Apps Script untuk ACTION: addCustomer.`
+                    );
                 }
 
                 closeModal();
-                showAlert('Berhasil Ditambahkan', `Pelanggan "${name}" berhasil ditambahkan.`);
+                showAlert(
+                    'Berhasil Ditambahkan',
+                    `${type === 'warung' ? 'Warung' : 'Pelanggan'} "${name}" berhasil ditambahkan.`
+                );
                 render();
+
             } catch (error) {
                 console.error('Gagal menambahkan customer:', error);
                 await loadDBFromCloud();
                 render();
-                showAlert('Gagal', error.message || 'Pelanggan gagal ditambahkan ke database pusat.', 'error');
+                showAlert('Gagal Menambahkan', error.message || 'Pelanggan gagal ditambahkan ke database pusat.', 'error');
+            } finally {
+                customerDeletionInProgress = false;
+                startAdminCloudAutoRefresh();
             }
         }
 
