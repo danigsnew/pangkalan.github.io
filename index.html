@@ -4048,27 +4048,35 @@ function saveEditedAllocations(pId) {
 
         function openTindakLanjutModal(reportId) {
             const db = getDB();
-            const report = db.warungReports.find(r => r.id === reportId);
-            const liveInv = getWarungInventory(report.customerId);
+
+const report =
+    db.warungReports.find(r => r.id === reportId);
+
+if (!report) return;
+
+const cust =
+    db.customers.find(c => c.id === report.customerId);
+
+const liveInv =
+    getWarungInventory(report.customerId);
 
 const stokKosongTerbaru =
-    Number(liveInv.estimasiStokKosongWarung || 0);
+    Number(
+        liveInv.estimasiStokKosongWarung || 0
+    );
 
-const stokIsiTerbaru =
-    Number(liveInv.estimasiStokIsiWarung || 0);
-            if (!report) return;
+const jumlahTukar =
+    Math.max(
+        0,
+        stokKosongTerbaru
+    );
 
-            const cust = db.customers.find(c => c.id === report.customerId);
-            const liveInv = getWarungInventory(report.customerId);
+const usedQuota =
+    cust ? getCustomerMonthlyUsage(cust.id) : 0;
 
-            const stokKosongTerbaru =
-                Number(liveInv.estimasiStokKosongWarung || 0);
-            
-            const jumlahTukar =
-                Math.max(0, stokKosongTerbaru);
-            const usedQuota = cust ? getCustomerMonthlyUsage(cust.id) : 0;
-            const maxQuota = cust ? cust.quotaMonthly : 60;
-
+const maxQuota =
+    cust ? cust.quotaMonthly : 60;
+           
             // Harga wajib mengikuti harga jual pada transaksi pertama warung.
             const firstTrx = (db.transactions || [])
                 .filter(t => t.customerId === report.customerId)
