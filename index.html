@@ -2632,7 +2632,7 @@ function stopAdminCloudAutoRefresh() {
                                                             class="w-9 h-9 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 flex items-center justify-center">
                                                             <i class="fa-solid fa-pen"></i>
                                                         </button>
-                                                        <button onclick="if (confirm('Hapus ${c.type === 'perorangan' ? 'pelanggan perorangan' : 'warung'} ini?')) deleteWarung('${c.id}')"
+                                                        <button onclick="confirmDeleteWarung('${c.id}')"
                                                             class="w-9 h-9 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 flex items-center justify-center">
                                                             <i class="fa-solid fa-trash"></i>
                                                         </button>
@@ -4421,64 +4421,93 @@ const totalAwal =
         function openEditWarungModal(customerId) {
             const db = getDB();
             const pangId = db.currentUser?.pangkalanId;
-            const warung = db.customers.find(c =>
+            const customer = db.customers.find(c =>
                 c.id === customerId &&
                 c.pangkalanId === pangId &&
-                c.type === 'warung'
+                (c.type === 'warung' || c.type === 'perorangan')
             );
-            if (!warung) return;
+            if (!customer) return;
 
-            showModal('Edit Warung', 'Perbarui data warung.', 'fa-pen-to-square', 'bg-amber-100 text-amber-600', `
-                <form onsubmit="submitEditWarung(event, '${warung.id}')" class="space-y-4">
+            const isPerorangan = customer.type === 'perorangan';
+            const nameValue = String(customer.name || '').replace(/"/g, '&quot;');
+            const phoneValue = String(customer.phone || '').replace(/"/g, '&quot;');
+            const usernameValue = String(customer.username || '').replace(/"/g, '&quot;');
+            const passwordValue = String(customer.password || '123').replace(/"/g, '&quot;');
+
+            showModal(
+                isPerorangan ? 'Edit Pelanggan Perorangan' : 'Edit Warung',
+                isPerorangan ? 'Perbarui data pelanggan perorangan.' : 'Perbarui data warung.',
+                'fa-pen-to-square',
+                'bg-amber-100 text-amber-600',
+                `
+                <form onsubmit="submitEditWarung(event, '${customer.id}')" class="space-y-4">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Warung</label>
-                        <input type="text" id="editWarungName" value="${String(warung.name || '').replace(/"/g, '&quot;')}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Nama</label>
+                        <input type="text" id="editWarungName" value="${nameValue}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
                     </div>
+                    ${isPerorangan ? `
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">No. WhatsApp</label>
+                        <input type="text" id="editWarungPhone" value="${phoneValue}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+                    </div>
+                    ` : `
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Username</label>
-                        <input type="text" id="editWarungUsername" value="${String(warung.username || '').replace(/"/g, '&quot;')}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+                        <input type="text" id="editWarungUsername" value="${usernameValue}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">Password</label>
-                        <input type="text" id="editWarungPassword" value="${String(warung.password || '123').replace(/"/g, '&quot;')}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+                        <input type="text" id="editWarungPassword" value="${passwordValue}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">No. WhatsApp</label>
-                        <input type="text" id="editWarungPhone" value="${String(warung.phone || '').replace(/"/g, '&quot;')}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+                        <input type="text" id="editWarungPhone" value="${phoneValue}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
                     </div>
+                    `}
                     <button type="submit" class="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm shadow-md">
                         Simpan Perubahan
                     </button>
                 </form>
-            `);
+                `
+            );
         }
 
         function submitEditWarung(e, customerId) {
             e.preventDefault();
             const db = getDB();
             const pangId = db.currentUser?.pangkalanId;
-            const warung = db.customers.find(c => c.id === customerId && c.pangkalanId === pangId && c.type === 'warung');
-            if (!warung) return;
-
-            const newUsername = document.getElementById('editWarungUsername').value.trim().toLowerCase();
-            const duplicate = db.customers.some(c =>
-                c.id !== customerId &&
+            const customer = db.customers.find(c =>
+                c.id === customerId &&
                 c.pangkalanId === pangId &&
-                c.username === newUsername
+                (c.type === 'warung' || c.type === 'perorangan')
             );
-            if (duplicate) {
-                showAlert('Gagal Menyimpan', 'Username warung sudah digunakan di pangkalan ini.', 'error');
-                return;
-            }
+            if (!customer) return;
 
-            warung.name = document.getElementById('editWarungName').value.trim();
-            warung.username = newUsername;
-            warung.password = document.getElementById('editWarungPassword').value.trim();
-            warung.phone = document.getElementById('editWarungPhone').value.trim();
+            customer.name = document.getElementById('editWarungName').value.trim();
+            customer.phone = document.getElementById('editWarungPhone')?.value.trim() || '';
+
+            if (customer.type === 'warung') {
+                const newUsername = document.getElementById('editWarungUsername').value.trim().toLowerCase();
+                const duplicate = db.customers.some(c =>
+                    c.id !== customerId &&
+                    c.pangkalanId === pangId &&
+                    c.type === 'warung' &&
+                    String(c.username || '').toLowerCase() === newUsername
+                );
+                if (duplicate) {
+                    showAlert('Gagal Menyimpan', 'Username warung sudah digunakan di pangkalan ini.', 'error');
+                    return;
+                }
+                customer.username = newUsername;
+                customer.password = document.getElementById('editWarungPassword').value.trim();
+            }
 
             saveDB(db);
             closeModal();
-            showAlert('Warung Diperbarui', `Data ${warung.name} berhasil diperbarui.`);
+            showAlert(
+                customer.type === 'perorangan' ? 'Pelanggan Diperbarui' : 'Warung Diperbarui',
+                `Data ${customer.name} berhasil diperbarui.`
+            );
             render();
         }
 
@@ -4534,132 +4563,46 @@ const totalAwal =
             const pangId = db.currentUser?.pangkalanId;
 
             if (!pangId) {
-                showAlert(
-                    'Gagal',
-                    'Pangkalan aktif tidak ditemukan.',
-                    'error'
-                );
+                showAlert('Gagal', 'Pangkalan aktif tidak ditemukan.', 'error');
                 return;
             }
 
-            const index = (db.customers || []).findIndex(c =>
-                c.id === customerId &&
-                c.pangkalanId === pangId
+            const customer = (db.customers || []).find(c =>
+                String(c.id) === String(customerId) &&
+                String(c.pangkalanId) === String(pangId)
             );
 
-            if (index === -1) {
-                showAlert(
-                    'Gagal',
-                    'Pelanggan tidak ditemukan pada pangkalan ini.',
-                    'error'
-                );
+            if (!customer) {
+                showAlert('Gagal', 'Pelanggan tidak ditemukan pada pangkalan ini.', 'error');
                 return;
             }
 
-            const customer = db.customers[index];
-            const customerName = String(customer.name || '').trim();
-
             customerDeletionInProgress = true;
+            stopAdminCloudAutoRefresh();
 
             try {
-                /*
-                 * Hentikan snapshot cloud yang masih menunggu.
-                 * Ini mencegah data lama dikirim kembali setelah penghapusan.
-                 */
+                // Hentikan snapshot lama agar tidak menulis ulang customer yang sedang dihapus.
                 clearTimeout(cloudSaveTimer);
                 cloudSaveTimer = null;
                 cloudSavePending = null;
 
-                /*
-                 * Tunggu request simpan lama selesai bila masih berjalan.
-                 */
-                let waitCount = 0;
-                while (cloudSaveInFlight && waitCount < 100) {
+                while (cloudSaveInFlight) {
                     await new Promise(resolve => setTimeout(resolve, 100));
-                    waitCount++;
                 }
 
-                /*
-                 * Hapus histori lokal customer.
-                 */
-                const isCustomerRecord = (record) => {
-                    const recordCustomerId =
-                        record?.customerId ??
-                        record?.warungId ??
-                        record?.customer_id ??
-                        record?.warung_id;
-
-                    return String(recordCustomerId ?? '') === String(customerId);
-                };
-
-                db.warungSales =
-                    (db.warungSales || []).filter(
-                        r => !isCustomerRecord(r)
-                    );
-
-                db.warungReports =
-                    (db.warungReports || []).filter(
-                        r => !isCustomerRecord(r)
-                    );
-
-                db.transactions =
-                    (db.transactions || []).filter(
-                        r => !isCustomerRecord(r)
-                    );
-
-                if (Array.isArray(db.payments)) {
-                    db.payments =
-                        db.payments.filter(
-                            r => !isCustomerRecord(r)
-                        );
-                }
-
-                if (Array.isArray(db.debts)) {
-                    db.debts =
-                        db.debts.filter(
-                            r => !isCustomerRecord(r)
-                        );
-                }
-
-                if (Array.isArray(db.customerTransactions)) {
-                    db.customerTransactions =
-                        db.customerTransactions.filter(
-                            r => !isCustomerRecord(r)
-                        );
-                }
-
-                if (Array.isArray(db.pangkalanStockAdjustments)) {
-                    db.pangkalanStockAdjustments =
-                        db.pangkalanStockAdjustments.filter(a =>
-                            !(
-                                a.source === 'warung_deleted' &&
-                                (
-                                    String(a.sourceId) === String(customerId) ||
-                                    String(a.pangkalanId) === String(pangId)
-                                )
-                            )
-                        );
-                }
-
-                db.customers.splice(index, 1);
-                localStorage.setItem(DB_KEY, JSON.stringify(db));
-
-                /*
-                 * Hapus langsung dari database pusat.
-                 * Gunakan endpoint deleteCustomer yang sudah tersedia di Code.gs.
-                 */
-                const deletePayload = {
+                const payload = JSON.stringify({
                     action: 'deleteCustomer',
-                    customerId: customerId,
+                    customerId: customer.id,
                     pangkalanId: pangId,
                     actor: db.currentUser
                         ? {
                             role: db.currentUser.role || null,
                             id: db.currentUser.id || null,
-                            pangkalanId: db.currentUser.pangkalanId || null
+                            pangkalanId: db.currentUser.pangkalanId || null,
+                            name: db.currentUser.name || null
                         }
                         : null
-                };
+                });
 
                 await fetch(API_URL, {
                     method: 'POST',
@@ -4668,41 +4611,61 @@ const totalAwal =
                     headers: {
                         'Content-Type': 'text/plain;charset=utf-8'
                     },
-                    body: JSON.stringify(deletePayload)
+                    body: payload
                 });
 
-                /*
-                 * Beri sedikit waktu agar write Apps Script selesai,
-                 * lalu ambil kembali database pusat.
-                 */
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // Beri waktu Apps Script menyelesaikan penulisan DATABASE!A1.
+                await new Promise(resolve => setTimeout(resolve, 700));
+
                 await loadDBFromCloud();
-                render();
+                let cloudDB = getDB();
+                let masihAda = (cloudDB.customers || []).some(c =>
+                    String(c.id) === String(customer.id)
+                );
+
+                // Retry satu kali jika GET pertama masih melihat data lama.
+                if (masihAda) {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        cache: 'no-store',
+                        headers: {
+                            'Content-Type': 'text/plain;charset=utf-8'
+                        },
+                        body: payload
+                    });
+
+                    await new Promise(resolve => setTimeout(resolve, 700));
+                    await loadDBFromCloud();
+                    cloudDB = getDB();
+                    masihAda = (cloudDB.customers || []).some(c =>
+                        String(c.id) === String(customer.id)
+                    );
+                }
+
+                if (masihAda) {
+                    throw new Error('Data masih ada di database pusat. Penghapusan belum berhasil.');
+                }
 
                 closeModal();
-
                 showAlert(
                     'Berhasil Dihapus',
-                    `${customerName} berhasil dihapus dari pangkalan.`
+                    `${customer.name} berhasil dihapus dari pangkalan.`
                 );
+                render();
 
             } catch (error) {
                 console.error('Gagal menghapus customer:', error);
-
-                /*
-                 * Kembalikan tampilan ke database pusat bila request gagal.
-                 */
                 await loadDBFromCloud();
                 render();
-
                 showAlert(
                     'Gagal',
-                    'Penghapusan gagal diproses ke database pusat.',
+                    error.message || 'Penghapusan gagal diproses ke database pusat.',
                     'error'
                 );
-
             } finally {
                 customerDeletionInProgress = false;
+                startAdminCloudAutoRefresh();
             }
         }
 
