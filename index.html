@@ -2576,15 +2576,22 @@ function stopAdminCloudAutoRefresh() {
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
-                                    ${myCustomers.filter(c => c.type === 'warung').length === 0 ? `
+                                    ${myCustomers.filter(c => c.type === 'warung' || c.type === 'perorangan').length === 0 ? `
                                         <tr><td colspan="5" class="p-8 text-center text-slate-400">Belum ada warung terdaftar.</td></tr>
-                                    ` : myCustomers.filter(c => c.type === 'warung').map(c => {
-                                        const wi = getWarungInventory(c.id);
+                                    ` : myCustomers.filter(c => c.type === 'warung' || c.type === 'perorangan').map(c => {
+                                       const wi = c.type === 'warung'
+                                                ? getWarungInventory(c.id)
+                                                : {
+                                                    estimasiStokIsiWarung: 0,
+                                                    estimasiStokKosongWarung: 0
+                                                };
                                         return `
                                             <tr class="hover:bg-slate-50/60 transition">
                                                 <td class="p-3.5">
                                                     <p class="font-bold text-slate-800">${c.name}</p>
-                                                    <p class="text-[11px] text-slate-400">${c.username || '-'}</p>
+                                                    <p class="text-[11px] font-bold ${c.type === 'perorangan' ? 'text-blue-600' : 'text-slate-400'}">
+                                                        ${c.type === 'perorangan' ? 'PERORANGAN' : (c.username || '-')}
+                                                    </p>
                                                 </td>
                                                 <td class="p-3.5 text-slate-600">${c.phone || '-'}</td>
                                                 <td class="p-3.5">
@@ -4456,14 +4463,20 @@ const totalAwal =
         function confirmDeleteWarung(customerId) {
             const db = getDB();
             const pangId = db.currentUser?.pangkalanId;
-            const warung = db.customers.find(c => c.id === customerId && c.pangkalanId === pangId && c.type === 'warung');
+           const warung = db.customers.find(c =>
+                            c.id === customerId &&
+                            c.pangkalanId === pangId
+                        );
             if (!warung) return;
+            const isPerorangan = warung.type === 'perorangan';
 
             const inv = getWarungInventory(customerId);
 
             showModal(
-                'Hapus Warung',
-                'Konfirmasi penghapusan warung dan pengembalian stok.',
+                isPerorangan ? 'Hapus Pelanggan Perorangan' : 'Hapus Warung',
+                isPerorangan
+                                ? 'Pelanggan perorangan akan dihapus beserta histori transaksinya.'
+                                : 'Konfirmasi penghapusan warung dan pengembalian stok.',
                 'fa-triangle-exclamation',
                 'bg-rose-100 text-rose-600',
                 `
@@ -4507,9 +4520,9 @@ const totalAwal =
     }
 
     const index = (db.customers || []).findIndex(c =>
-        c.id === customerId &&
-        c.pangkalanId === pangId &&
-        c.type === 'warung'
+    c.id === customerId &&
+    c.pangkalanId === pangId
+        );
     );
 
     if (index === -1) {
