@@ -1360,16 +1360,22 @@ let cloudSavePending = null;
             if (!Array.isArray(db.pangalans)) db.pangalans = [];
 
             if (db.customers) {
-                db.customers.forEach(c => {
-                    if (!c.username && c.name) {
-                        c.username = c.name.toLowerCase().replace(/\s+/g, '');
-                    }
-                    if (!c.password) c.password = '123';
-                    if (!c.quotaMonthly) {
-                        c.quotaMonthly = c.type === 'warung' ? 60 : 4;
-                    }
-                });
+    db.customers.forEach(c => {
+        if (c.type === 'warung') {
+            if (!c.username) {
+                c.username = c.name.toLowerCase().replace(/\s+/g, '');
             }
+
+            if (!c.password) {
+                c.password = '123';
+            }
+        }
+
+        if (!c.quotaMonthly) {
+            c.quotaMonthly = c.type === 'warung' ? 60 : 4;
+        }
+    });
+}
 
             if (db.transactions) {
                 db.transactions.forEach(t => {
