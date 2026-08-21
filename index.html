@@ -2557,9 +2557,9 @@ function stopAdminCloudAutoRefresh() {
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                             <div>
                                 <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                    <i class="fa-solid fa-store text-amber-600"></i> Daftar Warung
+                                    <i class="fa-solid fa-store text-amber-600"></i> Daftar Pelanggan
                                 </h3>
-                                <p class="text-xs text-slate-500">Edit data warung atau hapus warung. Saat dihapus, stok isi dan kosong yang masih tercatat dikembalikan ke stok pangkalan.</p>
+                                <p class="text-xs text-slate-500">Kelola Warung dan pelanggan perorangan. Warung memiliki stok fisik, sedangkan perorangan hanya menyimpan identitas dan histori transaksi.</p>
                             </div>
                             <button onclick="openAddCustomerModal()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition">
                                 <i class="fa-solid fa-plus mr-1"></i> Tambah Warung
@@ -2577,43 +2577,103 @@ function stopAdminCloudAutoRefresh() {
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
-                                    ${myCustomers.filter(c => c.type === 'warung').length === 0 ? `
-                                        <tr><td colspan="5" class="p-8 text-center text-slate-400">Belum ada warung terdaftar.</td></tr>
-                                    ` : myCustomers.filter(c => c.type === 'warung').map(c => {
-                                        const wi = getWarungInventory(c.id);
-                                        return `
-                                            <tr class="hover:bg-slate-50/60 transition">
-                                                <td class="p-3.5">
-                                                    <p class="font-bold text-slate-800">${c.name}</p>
-                                                    <p class="text-[11px] text-slate-400">${c.username || '-'}</p>
-                                                </td>
-                                                <td class="p-3.5 text-slate-600">${c.phone || '-'}</td>
-                                                <td class="p-3.5">
-                                                    <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-100">
-                                                        ${wi.estimasiStokIsiWarung} Unit
-                                                    </span>
-                                                </td>
-                                                <td class="p-3.5">
-                                                    <span class="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold border border-amber-100">
-                                                        ${wi.estimasiStokKosongWarung} Unit
-                                                    </span>
-                                                </td>
-                                                <td class="p-3.5 text-right">
-                                                    <div class="flex justify-end gap-2">
-                                                        <button onclick="openEditWarungModal('${c.id}')" title="Edit Warung"
-                                                            class="w-9 h-9 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 flex items-center justify-center">
-                                                            <i class="fa-solid fa-pen"></i>
-                                                        </button>
-                                                        <button onclick="confirmDeleteWarung('${c.id}')" title="Hapus Warung"
-                                                            class="w-9 h-9 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 flex items-center justify-center">
-                                                            <i class="fa-solid fa-trash"></i>
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        `;
-                                    }).join('')}
-                                </tbody>
+
+    ${myCustomers.length === 0 ? `
+        <tr>
+            <td colspan="5" class="p-8 text-center text-slate-400">
+                Belum ada pelanggan terdaftar.
+            </td>
+        </tr>
+    ` : myCustomers.map(c => {
+
+        const isWarung = c.type === 'warung';
+        const wi = isWarung
+            ? getWarungInventory(c.id)
+            : null;
+
+        return `
+            <tr class="hover:bg-slate-50/60 transition">
+
+                <td class="p-3.5">
+                    <p class="font-bold text-slate-800">
+                        ${c.name}
+                    </p>
+
+                    <span class="inline-flex mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold
+                        ${isWarung
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                        }">
+                        ${isWarung ? 'WARUNG' : 'PERORANGAN'}
+                    </span>
+
+                    ${isWarung
+                        ? `<p class="text-[11px] text-slate-400 mt-1">${c.username || '-'}</p>`
+                        : ''
+                    }
+                </td>
+
+                <td class="p-3.5 text-slate-600">
+                    ${c.phone || '-'}
+                </td>
+
+                <td class="p-3.5">
+                    ${isWarung
+                        ? `
+                            <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-100">
+                                ${wi.estimasiStokIsiWarung} Unit
+                            </span>
+                          `
+                        : `
+                            <span class="text-xs text-slate-400">
+                                Tidak berlaku
+                            </span>
+                          `
+                    }
+                </td>
+
+                <td class="p-3.5">
+                    ${isWarung
+                        ? `
+                            <span class="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold border border-amber-100">
+                                ${wi.estimasiStokKosongWarung} Unit
+                            </span>
+                          `
+                        : `
+                            <span class="text-xs text-slate-400">
+                                Tidak berlaku
+                            </span>
+                          `
+                    }
+                </td>
+
+                <td class="p-3.5 text-right">
+                    <div class="flex justify-end gap-2">
+
+                        ${isWarung ? `
+                            <button
+                                onclick="openEditWarungModal('${c.id}')"
+                                title="Edit Warung"
+                                class="w-9 h-9 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 flex items-center justify-center">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                        ` : ''}
+
+                        <button
+                            onclick="confirmDeleteWarung('${c.id}')"
+                            title="${isWarung ? 'Hapus Warung' : 'Hapus Perorangan'}"
+                            class="w-9 h-9 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 flex items-center justify-center">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+
+                    </div>
+                </td>
+
+            </tr>
+        `;
+    }).join('')}
+
+</tbody>
                             </table>
                         </div>
                     </div>
@@ -4457,23 +4517,39 @@ const totalAwal =
         function confirmDeleteWarung(customerId) {
             const db = getDB();
             const pangId = db.currentUser?.pangkalanId;
-            const warung = db.customers.find(c => c.id === customerId && c.pangkalanId === pangId && c.type === 'warung');
-            if (!warung) return;
+            const customer = db.customers.find(c =>
+    c.id === customerId &&
+    c.pangkalanId === pangId
+);
 
-            const inv = getWarungInventory(customerId);
+if (!customer) return;
 
-            showModal(
-                'Hapus Warung',
-                'Konfirmasi penghapusan warung dan pengembalian stok.',
+const isWarung = customer.type === 'warung';
+
+const inv = isWarung
+    ? getWarungInventory(customerId)
+    : {
+        estimasiStokIsiWarung: 0,
+        estimasiStokKosongWarung: 0
+    };
+
+           showModal(
+    isWarung ? 'Hapus Warung' : 'Hapus Pelanggan Perorangan',
+    isWarung
+        ? 'Konfirmasi penghapusan warung dan pengembalian stok.'
+        : 'Konfirmasi penghapusan pelanggan perorangan dan histori transaksinya.',
                 'fa-triangle-exclamation',
                 'bg-rose-100 text-rose-600',
                 `
                     <div class="space-y-4">
                         <p class="text-xs text-slate-600">
-                            Warung akan dihapus dari daftar pangkalan. Stok fisik yang masih berada di warung akan dikembalikan ke stok pangkalan.
+                            ${isWarung
+                                ? 'Warung akan dihapus dari daftar pangkalan. Stok fisik yang masih berada di warung akan dikembalikan ke stok pangkalan.'
+                                : 'Pelanggan perorangan akan dihapus dari daftar pelanggan dan histori transaksinya.'
+                            }
                         </p>
                         <div class="p-4 bg-rose-50 rounded-2xl border border-rose-200">
-                            <p class="font-bold text-rose-800">${warung.name}</p>
+                            <p class="font-bold text-rose-800">${customer.name}</p>
                             <div class="grid grid-cols-2 gap-3 mt-3">
                                 <div class="bg-white rounded-xl p-3 border border-emerald-100">
                                     <p class="text-[10px] text-slate-500 uppercase font-bold">Isi Kembali</p>
@@ -4510,7 +4586,7 @@ const totalAwal =
     const index = (db.customers || []).findIndex(c =>
         c.id === customerId &&
         c.pangkalanId === pangId &&
-        c.type === 'warung'
+        
     );
 
     if (index === -1) {
@@ -4522,16 +4598,10 @@ const totalAwal =
         return;
     }
 
-    const warung = db.customers[index];
-    const warungName = String(warung.name || '').trim();
+    const customer = db.customers[index];
+    const customerName = String(warung.name || '').trim();
 
-    /*
-     * Hapus seluruh histori operasional Warung.
-     * Jangan membuat adjustment stok baru.
-     * Setelah histori dihapus, stok pangkalan akan
-     * dihitung ulang berdasarkan data yang masih aktif.
-     */
-
+    
     const isWarungRecord = (record) => {
         const recordCustomerId =
             record.customerId ??
@@ -4551,7 +4621,7 @@ const totalAwal =
             recordCustomerId === customerId ||
             (
                 record.pangkalanId === pangId &&
-                recordName === warungName
+                recordName === customerName
             )
         );
     };
@@ -4627,8 +4697,9 @@ const totalAwal =
     closeModal();
 
     showAlert(
-        'Warung Dihapus',
-        `${warungName} berhasil dihapus dari pangkalan.`
+    'Pelanggan Dihapus',
+    `${customerName} berhasil dihapus dari pangkalan.`
+);
     );
 
     render();
