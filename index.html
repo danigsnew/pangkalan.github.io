@@ -2109,21 +2109,50 @@ async function processCloudSave() {
 let adminCloudRefreshRunning = false;
 
 
-function startAdminCloudAutoRefresh() {
-    /*
-     * TAHAP PERBAIKAN FRONTEND:
-     *
-     * Auto-refresh cloud admin dihentikan sementara.
-     * Sebelumnya loadDBFromCloud() berjalan setiap 3 detik dan dapat
-     * mengganti db.customers lokal dengan snapshot Google Sheet yang
-     * masih lama. Akibatnya pelanggan baru sempat muncul lalu hilang.
-     *
-     * saveDB() tetap berjalan dan tetap mengirim snapshot terbaru ke
-     * Google Apps Script. Backend akan diperbaiki pada tahap berikutnya.
-     */
-    return;
-}
+let adminCloudRefreshTimer = null;
 
+function startAdminCloudAutoRefresh() {
+    if (IS_EMBEDDED_PREVIEW) return;
+
+    // Jangan membuat interval ganda.
+    if (adminCloudRefreshTimer) return;
+
+    adminCloudRefreshTimer = setInterval(async () => {
+        const db = getDB();
+        const user = db.currentUser;
+
+        // Hanya Admin Pangkalan yang melakukan auto-sync ini.
+        if (
+            !user ||
+            user.role !== 'ADMIN_PANGKALAN'
+        ) {
+            return;
+        }
+
+        // Jangan mengambil snapshot cloud ketika browser
+        // sedang mengirim perubahan lokal.
+        if (
+            cloudDBLoading ||
+            cloudSaveInFlight ||
+            cloudSavePending ||
+            customerDeletionInProgress
+        ) {
+            return;
+        }
+
+        const berhasil = await loadDBFromCloud();
+
+        if (berhasil) {
+            render();
+        }
+    }, 5000);
+}
+function stopAdminCloudAutoRefresh() {
+    if (adminCloudRefreshTimer) {
+        clearInterval(adminCloudRefreshTimer);
+        adminCloudRefreshTimer = null;
+    }
+}
 function stopAdminCloudAutoRefresh() {
     if (adminCloudRefreshTimer) {
         clearInterval(adminCloudRefreshTimer);
