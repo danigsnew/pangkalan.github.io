@@ -4340,7 +4340,20 @@ function saveEditedAllocations(pId) {
     // HAPUS TRANSAKSI
     // =========================================================
 
-    db.transactions.splice(index, 1);
+    // =========================================================
+// HAPUS TRANSAKSI UTAMA + TARIK KOSONG TERKAIT
+// =========================================================
+
+const deletedTransactionId = String(transaction.id);
+
+// Hapus transaksi utama
+db.transactions.splice(index, 1);
+
+// Hapus transaksi tarik kosong yang berasal
+// dari transaksi utama yang sama.
+db.transactions = (db.transactions || []).filter(t =>
+    String(t.sourceTransactionId || '') !== deletedTransactionId
+);
 
     // =========================================================
     // SIMPAN
@@ -4653,6 +4666,7 @@ const totalAwal =
                 // qtyKosongDiambil = jumlah tabung kosong yang kembali ke pangkalan.
                 db.transactions.push({
                     id: 'trx_empty_return_' + Date.now(),
+                    sourceTransactionId: report.sourceTransactionId || null,
                     pangkalanId: pangId,
                     date: new Date().toISOString().slice(0, 10),
                     createdAt: new Date().toISOString(),
@@ -4737,8 +4751,10 @@ const totalAwal =
                 return;
             }
 
-            db.transactions.push({
-                id: 'trx_' + Date.now(),
+            const transactionId = 'trx_' + Date.now();
+
+                db.transactions.push({
+                id: transactionId,
                 pangkalanId: pangId,
                 date: new Date().toISOString().slice(0, 10),
                 createdAt: new Date().toISOString(),
@@ -4757,6 +4773,8 @@ const totalAwal =
                 statusBayar: bayar >= total ? 'lunas' : 'belum_lunas',
                 catatan: 'Penukaran Tabung Kosong & Pengiriman Tabung Isi'
             });
+            
+            report.sourceTransactionId = transactionId;
 
             report.status = 'processed';
 
