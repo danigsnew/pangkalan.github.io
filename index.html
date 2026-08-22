@@ -1865,102 +1865,145 @@ async function processCloudSave() {
             userInp.value = pang?.username || '';
         }
 
-        function handleLogin(e) {
-            e.preventDefault();
+        async function handleLogin(e) {
+    e.preventDefault();
 
-            const username = document.getElementById('loginUsername').value.trim();
-            const password = document.getElementById('loginPassword').value.trim();
-            const db = getDB();
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
 
-            if (!username || !password) {
-                showAlert('Gagal Masuk', 'Username dan password wajib diisi.', 'error');
-                return;
-            }
+    if (!username || !password) {
+        showAlert(
+            'Gagal Masuk',
+            'Username dan password wajib diisi.',
+            'error'
+        );
+        return;
+    }
 
-            const normalizedUsername = username.toLowerCase();
+    const button = e.submitter;
+    const originalText = button?.innerHTML;
 
-            // Super Admin
-            if (normalizedUsername === 'superadmin' && password === '123') {
-                db.currentUser = {
-                    role: 'superadmin',
-                    name: 'Super Admin Pusat',
-                    pangkalanId: null
-                };
-                saveDB(db);
-                showAlert('Berhasil Masuk', 'Selamat datang, Super Admin Pusat!');
-                render();
-                return;
-            }
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = `
+            <i class="fa-solid fa-spinner fa-spin text-xs"></i>
+            <span>Memeriksa...</span>
+        `;
+    }
 
-            // Admin Pangkalan: cari otomatis dari seluruh data pangkalan.
-            const pang = (db.pangalans || []).find(p =>
-                String(p.username || '').toLowerCase() === normalizedUsername &&
-                String(p.password || '') === password
-            );
+    try {
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            mode: 'cors',
+            cache: 'no-store',
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify({
+                action: 'loginUser',
+                username: username,
+                password: password
+            })
+        });
 
-            if (pang) {
-                db.currentUser = {
-                    role: 'admin',
-                    name: `Admin ${pang.name}`,
-                    pangkalanId: pang.id
-                };
-                saveDB(db);
-                showAlert('Berhasil Masuk', `Selamat datang di ${pang.name}!`);
-                render();
-                return;
-            }
-
-            // Warung
-            const warung = (db.customers || []).find(c =>
-                c.type === 'warung' &&
-                (
-                    String(c.username || '').toLowerCase() === normalizedUsername ||
-                    String(c.name || '').toLowerCase() === normalizedUsername
-                ) &&
-                String(c.password || '') === password
-            );
-
-            if (warung) {
-                db.currentUser = {
-                    id: warung.id,
-                    role: 'warung',
-                    name: warung.name,
-                    username: warung.username,
-                    pangkalanId: warung.pangkalanId
-                };
-                saveDB(db);
-                showAlert('Berhasil Masuk', `Selamat datang, ${warung.name}!`);
-                render();
-                return;
-            }
-
-            // Pelanggan perorangan
-            const pelanggan = (db.customers || []).find(c =>
-                c.type === 'perorangan' &&
-                (
-                    String(c.username || '').toLowerCase() === normalizedUsername ||
-                    String(c.name || '').toLowerCase() === normalizedUsername
-                ) &&
-                String(c.password || '') === password
-            );
-
-            if (pelanggan) {
-                db.currentUser = {
-                    id: pelanggan.id,
-                    role: 'perorangan',
-                    name: pelanggan.name,
-                    username: pelanggan.username,
-                    pangkalanId: pelanggan.pangkalanId
-                };
-                saveDB(db);
-                showAlert('Berhasil Masuk', `Selamat datang, ${pelanggan.name}!`);
-                render();
-                return;
-            }
-
-            showAlert('Gagal Masuk', 'Username atau password salah.', 'error');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
         }
 
+        const result = await response.json();
+
+        console.log('HASIL LOGIN API:', result);
+
+        if (!result.success || !result.user) {
+            showAlert(
+                'Gagal Masuk',
+                result.message || 'Username atau password salah.',
+                'error'
+            );
+            return;
+        }
+
+        const apiUser = result.user;
+
+        // Normalisasi role dari backend ke role yang dipakai frontend.
+        let frontendRole = '';
+
+        switch (String(apiUser.role || '').toUpperCase()) {
+            case 'ADMIN_PANGKALAN':
+            case 'ADMIN':
+                frontendRole = 'admin';
+                break;
+
+            case 'SUPER_ADMIN':
+            case 'SUPERADMIN':
+                frontendRole = 'superadmin';
+                break;
+
+            case 'WARUNG':
+                frontendRole = 'warung';
+                break;
+
+            case 'PERORANGAN':
+            case 'PELANGGAN':
+                frontendRole = 'perorangan';
+                break;
+
+            default:
+                throw new Error(
+                    `Role "${apiUser.role}" belum dikenali frontend.`
+                );
+        }
+
+        /*
+         * Simpan HANYA sesi user.
+         * Jangan menggunakan saveDB() karena saveDB()
+         * akan mengirim seluruh database lokal ke cloud.
+         */
+        const currentUser = {
+            id: apiUser.id || null,
+            name: apiUser.name || username,
+            username: apiUser.username || username,
+            role: frontendRole,
+            pangkalanId: apiUser.pangkalanId || null
+        };
+
+        const db = getDB();
+
+        db.currentUser = currentUser;
+
+        localStorage.setItem(
+            DB_KEY,
+            JSON.stringify(normalizeDB(db))
+        );
+
+        console.log('SESSION LOGIN:', currentUser);
+
+        showAlert(
+            'Berhasil Masuk',
+            `Selamat datang, ${currentUser.name}!`
+        );
+
+        render();
+
+    } catch (error) {
+        console.error('LOGIN API ERROR:', error);
+
+        showAlert(
+            'Gagal Terhubung',
+            'Tidak dapat menghubungi database pusat. Periksa koneksi internet atau URL Apps Script.',
+            'error'
+        );
+
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = originalText || `
+                <span>Masuk</span>
+                <i class="fa-solid fa-arrow-right text-xs"></i>
+            `;
+        }
+    }
+}
 
         function handleLogout() {
             const db = getDB();
