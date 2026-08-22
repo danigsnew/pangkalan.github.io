@@ -2361,13 +2361,18 @@ function stopAdminCloudAutoRefresh() {
                 r.status === 'pending' &&
                 db.customers.some(c => c.id === r.customerId && c.pangkalanId === pangId)
             );
-            const myCustomers = db.customers.filter(c => c.pangkalanId === pangId);
+            const myCustomers = db.customers.filter(c =>
+                String(c.pangkalanId) === String(pangId)
+            );
 
             // Histori hanya menampilkan transaksi yang pelanggan/warung-nya masih ada.
             // Jika warung sudah dihapus, histori lama otomatis tidak ikut tampil.
             const trxs = db.transactions.filter(t =>
                 t.pangkalanId === pangId &&
-                db.customers.some(c => c.id === t.customerId && c.pangkalanId === pangId) &&
+                db.customers.some(c =>
+                    c.id === t.customerId &&
+                    String(c.pangkalanId) === String(pangId)
+                ) &&
                 (!adminHistoryWarungFilter || t.customerId === adminHistoryWarungFilter || t.warungId === adminHistoryWarungFilter)
             );
 
@@ -6180,7 +6185,7 @@ function submitEditTransaction(e, trxId) {
 
             const customer = {
                 id: 'cust_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-                pangkalanId: String(pangId),
+                pangkalanId: pangId,
                 name,
                 type,
                 quotaMonthly: quota > 0 ? quota : (type === 'warung' ? 60 : 4),
