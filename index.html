@@ -1427,22 +1427,25 @@ let customerDeletionInProgress = false;
 
         // Semua perubahan tetap langsung disimpan ke cache agar UI cepat,
         // lalu dikirim ke Google Apps Script sebagai database pusat.
-        function saveDB(db) {
+       function saveDB(db) {
     normalizeDB(db);
 
     // Simpan langsung ke cache lokal agar UI tetap cepat.
-    localStorage.setItem(DB_KEY, JSON.stringify(db));
+    localStorage.setItem(
+        DB_KEY,
+        JSON.stringify(db)
+    );
 
-    // Simpan hanya snapshot TERBARU.
-    // Jika user melakukan beberapa perubahan cepat,
-    // snapshot lama akan digantikan snapshot terbaru.
-    cloudSavePending = structuredClone(db);
+    // Tandai bahwa ada perubahan terbaru.
+    // Jangan structuredClone database di sini karena bisa
+    // membebani memori HP.
+    cloudSavePending = true;
 
     clearTimeout(cloudSaveTimer);
 
     cloudSaveTimer = setTimeout(() => {
         processCloudSave();
-    }, 300);
+    }, 500);
 
     return db;
 }
@@ -1451,7 +1454,6 @@ let customerDeletionInProgress = false;
 async function processCloudSave() {
     cloudSaveTimer = null;
 
-    // Jangan kirim request baru jika request sebelumnya masih berjalan.
     if (cloudSaveInFlight) {
         return;
     }
@@ -1460,9 +1462,10 @@ async function processCloudSave() {
         return;
     }
 
-    const dbToSend = cloudSavePending;
-    cloudSavePending = null;
+    // Ambil database TERBARU saat proses benar-benar dijalankan.
+    const dbToSend = getDB();
 
+    cloudSavePending = false;
     cloudSaveInFlight = true;
 
     try {
@@ -1472,19 +1475,21 @@ async function processCloudSave() {
             'Gagal menyimpan database terbaru ke cloud:',
             error
         );
+
+        // Jangan menghilangkan perubahan.
+        // Akan dicoba lagi pada perubahan berikutnya.
     } finally {
         cloudSaveInFlight = false;
 
-        // Jika selama request berlangsung ada perubahan baru,
-        // kirim snapshot terbaru setelah request selesai.
+        // Jika ada perubahan baru ketika request sebelumnya berjalan,
+        // kirim database terbaru.
         if (cloudSavePending) {
             cloudSaveTimer = setTimeout(() => {
                 processCloudSave();
-            }, 100);
+            }, 200);
         }
     }
 }
-
         async function saveDBToCloud(db) {
     if (IS_EMBEDDED_PREVIEW) {
         return { success: true, skipped: true };
@@ -1504,8 +1509,10 @@ async function processCloudSave() {
             name: null
         };
 
-    const cloudDB = structuredClone(db);
-    cloudDB.currentUser = null;
+    const cloudDB = {
+    ...db,
+    currentUser: null
+};
 
     const payload = JSON.stringify({
         action: 'saveDB',
@@ -1521,7 +1528,6 @@ async function processCloudSave() {
                     method: 'POST',
                     mode: 'no-cors',
                     cache: 'no-store',
-                    keepalive: true,
                     headers: {
                         'Content-Type': 'text/plain;charset=utf-8'
                     },
