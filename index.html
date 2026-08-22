@@ -1587,7 +1587,7 @@ async function processCloudSave() {
 
                 // Server belum memiliki database.
                 // Hanya pada kondisi ini data lokal dijadikan data awal.
-                if (!result.exists || !result.db) {
+                if (!result.db) {
                     const localDB = getDB();
                     await saveDBToCloud(localDB);
                     cloudDBReady = true;
