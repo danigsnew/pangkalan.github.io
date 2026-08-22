@@ -6096,256 +6096,81 @@ function submitEditTransaction(e, trxId) {
         }
 
         async function submitAddCustomer(event) {
-    event.preventDefault();
+            event.preventDefault();
 
-    const db = getDB();
-    const actor = db.currentUser;
-    const pangId = actor?.pangkalanId;
+            const db = getDB();
+            const actor = db.currentUser;
+            const pangId = actor?.pangkalanId;
 
-    if (!pangId) {
-        showAlert(
-            'Gagal',
-            'Pangkalan aktif tidak ditemukan.',
-            'error'
-        );
-        return;
-    }
-
-    const name =
-        document.getElementById('custName')?.value.trim() || '';
-
-    const type =
-        document.getElementById('custType')?.value || 'warung';
-
-    const quota =
-        Number(document.getElementById('custQuota')?.value || 0);
-
-    const username =
-        document.getElementById('custUsername')?.value
-            .trim()
-            .toLowerCase() || '';
-
-    const password =
-        document.getElementById('custPassword')?.value.trim() || '';
-
-    if (!name) {
-        showAlert(
-            'Gagal',
-            'Nama pelanggan wajib diisi.',
-            'error'
-        );
-        return;
-    }
-
-    if (!['warung', 'perorangan'].includes(type)) {
-        showAlert(
-            'Gagal',
-            'Tipe pelanggan tidak valid.',
-            'error'
-        );
-        return;
-    }
-
-    if (type === 'warung' && (!username || !password)) {
-        showAlert(
-            'Gagal',
-            'Username dan password warung wajib diisi.',
-            'error'
-        );
-        return;
-    }
-
-    // Cek duplikat username dari database yang sedang tampil
-    const duplicateUsername =
-        type === 'warung' &&
-        (db.customers || []).some(c =>
-            String(c.pangkalanId) === String(pangId) &&
-            c.type === 'warung' &&
-            String(c.username || '').trim().toLowerCase() === username
-        );
-
-    if (duplicateUsername) {
-        showAlert(
-            'Gagal Menambahkan',
-            `Username "${username}" sudah digunakan di pangkalan ini.`,
-            'error'
-        );
-        return;
-    }
-
-    // ID dibuat di browser agar bisa diverifikasi kembali
-    const customer = {
-        id:
-            'cust_' +
-            Date.now() +
-            '_' +
-            Math.random().toString(36).slice(2, 8),
-
-        pangkalanId: String(pangId),
-
-        name: name,
-
-        type: type,
-
-        quotaMonthly:
-            quota > 0
-                ? quota
-                : (type === 'warung' ? 60 : 4),
-
-        username: username,
-
-        password: password,
-
-        phone: '0812345678'
-    };
-
-    const payload = JSON.stringify({
-        action: 'addCustomer',
-
-        customer: customer,
-
-        pangkalanId: String(pangId),
-
-        actor: actor
-            ? {
-                role: actor.role || null,
-                id: actor.id || null,
-                pangkalanId: actor.pangkalanId || null,
-                name: actor.name || null
+            if (!pangId) {
+                showAlert('Gagal', 'Pangkalan aktif tidak ditemukan.', 'error');
+                return;
             }
-            : null
-    });
 
-    try {
+            const name = document.getElementById('custName')?.value.trim() || '';
+            const type = document.getElementById('custType')?.value || 'warung';
+            const quota = Number(document.getElementById('custQuota')?.value || 0);
+            const username = document.getElementById('custUsername')?.value.trim().toLowerCase() || '';
+            const password = document.getElementById('custPassword')?.value.trim() || '';
 
-        // =====================================================
-        // PENTING:
-        // Customer langsung ditulis ke DATABASE PUSAT
-        // menggunakan endpoint addCustomer Apps Script.
-        // JANGAN gunakan saveDB() di sini.
-        // =====================================================
+            if (!name) {
+                showAlert('Gagal', 'Nama pelanggan wajib diisi.', 'error');
+                return;
+            }
 
-        await fetch(API_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            cache: 'no-store',
-            headers: {
-                'Content-Type':
-                    'text/plain;charset=utf-8'
-            },
-            body: payload
-        });
+            if (!['warung', 'perorangan'].includes(type)) {
+                showAlert('Gagal', 'Tipe pelanggan tidak valid.', 'error');
+                return;
+            }
 
-        // Beri waktu Apps Script menyelesaikan penulisan
-        await new Promise(resolve =>
-            setTimeout(resolve, 1200)
-        );
+            if (type === 'warung' && (!username || !password)) {
+                showAlert('Gagal', 'Username dan password warung wajib diisi.', 'error');
+                return;
+            }
 
-        // Ambil kembali database dari Google Sheet
-        await loadDBFromCloud();
-
-        let cloudDB = getDB();
-
-        let savedCustomer =
-            (cloudDB.customers || []).find(c =>
-                String(c.id) === String(customer.id)
+            const duplicateUsername = type === 'warung' && (db.customers || []).some(c =>
+                String(c.pangkalanId) === String(pangId) &&
+                c.type === 'warung' &&
+                String(c.username || '').trim().toLowerCase() === username
             );
 
-        // =====================================================
-        // RETRY 1
-        // =====================================================
-
-        if (!savedCustomer) {
-
-            console.log(
-                'Customer belum terlihat di cloud. Retry 1...'
-            );
-
-            await new Promise(resolve =>
-                setTimeout(resolve, 1000)
-            );
-
-            await fetch(API_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                cache: 'no-store',
-                headers: {
-                    'Content-Type':
-                        'text/plain;charset=utf-8'
-                },
-                body: payload
-            });
-
-            await new Promise(resolve =>
-                setTimeout(resolve, 1500)
-            );
-
-            await loadDBFromCloud();
-
-            cloudDB = getDB();
-
-            savedCustomer =
-                (cloudDB.customers || []).find(c =>
-                    String(c.id) === String(customer.id)
+            if (duplicateUsername) {
+                showAlert(
+                    'Gagal Menambahkan',
+                    `Username "${username}" sudah digunakan di pangkalan ini.`,
+                    'error'
                 );
-        }
+                return;
+            }
 
-        // =====================================================
-        // VERIFIKASI FINAL
-        // =====================================================
+            const customer = {
+                id: 'cust_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                pangkalanId: pangId,
+                name,
+                type,
+                quotaMonthly: quota > 0 ? quota : (type === 'warung' ? 60 : 4),
+                username,
+                password,
+                phone: '0812345678'
+            };
 
-        if (!savedCustomer) {
+            // Kembalikan alur frontend yang sebelumnya sudah berjalan:
+            // masukkan customer ke database lokal, simpan melalui saveDB(),
+            // lalu render ulang daftar pelanggan.
+            db.customers = Array.isArray(db.customers) ? db.customers : [];
+            db.customers.push(customer);
 
-            console.error(
-                'CUSTOMER GAGAL TERSIMPAN:',
-                customer
-            );
+            saveDB(db);
+
+            closeModal();
 
             showAlert(
-                'Gagal Menyimpan',
-                'Data pelanggan belum ditemukan di database pusat. Silakan coba lagi.',
-                'error'
+                'Berhasil Ditambahkan',
+                `${type === 'warung' ? 'Warung' : 'Pelanggan'} "${name}" berhasil ditambahkan ke daftar pelanggan.`
             );
 
-            return;
+            render();
         }
-
-        // =====================================================
-        // BERHASIL
-        // =====================================================
-
-        closeModal();
-
-        showAlert(
-            'Berhasil Ditambahkan',
-            `${savedCustomer.type === 'warung'
-                ? 'Warung'
-                : 'Pelanggan'
-            } "${savedCustomer.name}" berhasil disimpan ke database pusat.`
-        );
-
-        render();
-
-        console.log(
-            'CUSTOMER BERHASIL TERSIMPAN:',
-            savedCustomer
-        );
-
-    } catch (error) {
-
-        console.error(
-            'Gagal menambahkan customer:',
-            error
-        );
-
-        showAlert(
-            'Gagal',
-            error.message ||
-            'Terjadi kesalahan saat menyimpan pelanggan.',
-            'error'
-        );
-    }
-}
 
         function openWarungRetailSaleModal() {
             showModal('Catat Penjualan Eceran Warung', 'Catat tabung gas isi yang terjual ke warga/konsumen akhir', 'fa-cart-shopping', 'bg-amber-100 text-amber-600', `
