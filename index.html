@@ -1727,35 +1727,129 @@ async function processCloudSave() {
             return trxs.reduce((sum, t) => sum + Number(t.qty3kg || 0), 0);
         }
 
-        function getWarungInventory(customerId) {
-            const db = getDB();
-            const trxs = db.transactions.filter(t => t.customerId === customerId);
-            const sales = (db.warungSales || []).filter(s => s.customerId === customerId);
+       function getWarungInventory(customerId) {
+    const db = getDB();
 
-            const totalIsiDiterima = trxs.reduce((s, t) => s + Number(t.qty3kg || 0), 0);
-            const totalKosongDitarikPangkalan = trxs.reduce((s, t) => s + Number(t.qtyKosongDiambil || 0), 0);
-            const totalPenjualanEceran = sales.reduce((s, x) => s + Number(x.qty || 0), 0);
+    const trxs = (db.transactions || []).filter(
+        t => String(t.customerId) === String(customerId)
+    );
 
-            const totalTagihan = trxs.reduce((s, t) => s + Number(t.totalHarga || 0), 0);
-            const totalSudahDibayar = trxs.reduce((s, t) => s + Number(t.bayar || 0), 0);
-            const sisaHutang = Math.max(0, totalTagihan - totalSudahDibayar);
+    const sales = (db.warungSales || []).filter(
+        s => String(s.customerId) === String(customerId)
+    );
 
-            let stokIsi = Math.max(0, totalIsiDiterima - totalPenjualanEceran);
-            let stokKosong = Math.max(0, totalPenjualanEceran - totalKosongDitarikPangkalan);
-            const totalTabungFisik = stokIsi + stokKosong;
+    const totalIsiDiterima = trxs.reduce(
+        (s, t) => s + Number(t.qty3kg || 0),
+        0
+    );
 
-            return {
-                totalIsiDiterima,
-                totalKosongDitarikPangkalan,
-                totalPenjualanEceran,
-                totalTagihan,
-                totalSudahDibayar,
-                sisaHutang,
-                estimasiStokIsiWarung: stokIsi,
-                estimasiStokKosongWarung: stokKosong,
-                totalTabungFisik
-            };
+    const totalKosongDitarikPangkalan = trxs.reduce(
+        (s, t) => s + Number(t.qtyKosongDiambil || 0),
+        0
+    );
+
+    const totalPenjualanEceran = sales.reduce(
+        (s, x) => s + Number(x.qty || 0),
+        0
+    );
+
+    const totalTagihan = trxs.reduce(
+        (s, t) => s + Number(t.totalHarga || 0),
+        0
+    );
+
+    const totalSudahDibayar = trxs.reduce(
+        (s, t) => s + Number(t.bayar || 0),
+        0
+    );
+
+    const sisaHutang = Math.max(
+        0,
+        totalTagihan - totalSudahDibayar
+    );
+
+
+    // ========================================================
+    // HITUNG STOK ISI
+    // ========================================================
+
+    const stokIsi = Math.max(
+        0,
+        totalIsiDiterima - totalPenjualanEceran
+    );
+
+
+    // ========================================================
+    // HITUNG STOK KOSONG BERDASARKAN PERGERAKAN
+    // ========================================================
+
+    const movements = [];
+
+    // Transaksi pengiriman/pengambilan oleh pangkalan
+    trxs.forEach(t => {
+        movements.push({
+            type: 'ambilKosong',
+            qty: Number(t.qtyKosongDiambil || 0),
+            date: t.date || t.createdAt || t.timestamp || ''
+        });
+    });
+
+    // Penjualan eceran warung
+    sales.forEach(s => {
+        movements.push({
+            type: 'penjualan',
+            qty: Number(s.qty || 0),
+            date: s.date || s.createdAt || s.timestamp || ''
+        });
+    });
+
+
+    // Urutkan berdasarkan waktu
+    movements.sort((a, b) => {
+        const dateA = new Date(a.date || 0).getTime();
+        const dateB = new Date(b.date || 0).getTime();
+
+        return dateA - dateB;
+    });
+
+
+    let stokKosong = 0;
+
+    movements.forEach(movement => {
+
+        if (movement.type === 'ambilKosong') {
+
+            stokKosong -= movement.qty;
+
+        } else if (movement.type === 'penjualan') {
+
+            stokKosong += movement.qty;
         }
+
+        // Stok fisik tidak boleh negatif
+        stokKosong = Math.max(0, stokKosong);
+    });
+
+
+    const totalTabungFisik =
+        stokIsi + stokKosong;
+
+
+    return {
+        totalIsiDiterima,
+        totalKosongDitarikPangkalan,
+        totalPenjualanEceran,
+        totalTagihan,
+        totalSudahDibayar,
+        sisaHutang,
+
+        estimasiStokIsiWarung: stokIsi,
+
+        estimasiStokKosongWarung: stokKosong,
+
+        totalTabungFisik
+    };
+}
 
         function showAlert(title, message, type = 'success') {
             const container = document.getElementById('toastContainer');
