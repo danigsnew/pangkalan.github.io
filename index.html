@@ -6311,12 +6311,12 @@ function submitEditTransaction(e, trxId) {
     // =========================================================
     // 3. AMBANG OTOMATIS
     // =========================================================
-    const ambangKosong = 5;
-    const ambangIsi = 3;
-
+   const ambangKosong = 5;
+    const ambangIsi = 5;
+    
     const perluTindakan =
-        stokKosong >= ambangKosong ||
-        stokIsi <= ambangIsi;
+        stokIsi <= ambangIsi ||
+        stokKosong >= ambangKosong;
 
     // =========================================================
     // 4. CARI PERMINTAAN AKTIF WARUNG INI
