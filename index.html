@@ -2901,27 +2901,50 @@ function stopAdminCloudAutoRefresh() {
                                                     }
                                                 </td>
                                                 <td class="px-4 py-4 text-right whitespace-nowrap">
-    <div class="flex justify-end items-center gap-2">
+   <div class="flex justify-end items-center gap-2">
 
+    <button
+        type="button"
+        onclick="openEditTransactionModal('${t.id}')"
+        class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold rounded-lg text-[11px] transition">
+        <i class="fa-solid fa-pen mr-1"></i>
+        Edit
         <button
             type="button"
-            onclick="openEditTransactionModal('${t.id}')"
-            class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold rounded-lg text-[11px] transition">
-            <i class="fa-solid fa-pen mr-1"></i>
-            Edit
+            onclick="deletePangkalanTransaction('${t.id}')"
+            class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-lg text-[11px] transition">
+            <i class="fa-solid fa-trash mr-1"></i>
+            Hapus
         </button>
+    </button>
 
-        ${!isLunas
-            ? `
-                <button
-                    type="button"
-                    onclick="openPayDebtModal('${t.id}')"
-                    class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[11px] transition">
-                    Pelunasan
-                </button>
-            `
-            : ''
-        }
+    ${!isLunas
+        ? `
+            <button
+                type="button"
+                onclick="openPayDebtModal('${t.id}')"
+                class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[11px] transition">
+                Pelunasan
+            </button>
+        `
+        : ''
+    }
+
+    ${db.currentUser?.role === 'admin'
+        ? `
+            <button
+                type="button"
+                onclick="deletePangkalanTransaction('${t.id}')"
+                class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-lg text-[11px] transition"
+                title="Hapus transaksi">
+                <i class="fa-solid fa-trash mr-1"></i>
+                Hapus
+            </button>
+        `
+        : ''
+    }
+
+</div>
 
     </div>
 </td>
@@ -4009,36 +4032,71 @@ function saveEditedAllocations(pId) {
             const totalKosong = transactions.reduce((s,t) => s + Number(t.qtyKosongDiambil || 0), 0);
 
             const rows = transactions.map((t, i) => {
-                const total = Number(t.totalHarga || 0);
-                const bayar = Number(t.bayar || 0);
-                const sisa = Math.max(0, total - bayar);
-                const hpp = Number(t.modalPerTabung || 0);
-                const harga = Number(t.hargaJualPerTabung || t.hargaJual || 0);
-                const status = sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS';
-                const jenis = t.jenisTransaksi === 'tarik_kosong'
-                    ? 'Tarik Tabung Kosong'
-                    : 'Penjualan / Penukaran';
+    const total = Number(t.totalHarga || 0);
+    const bayar = Number(t.bayar || 0);
+    const sisa = Math.max(0, total - bayar);
+    const hpp = Number(t.modalPerTabung || 0);
+    const harga = Number(t.hargaJualPerTabung || t.hargaJual || 0);
+    const status = sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS';
+    const jenis = t.jenisTransaksi === 'tarik_kosong'
+        ? 'Tarik Tabung Kosong'
+        : 'Penjualan / Penukaran';
 
-                return `
-                    <tr>
-                        <td class="text-center">${i + 1}</td>
-                        <td>${t.date || '-'}</td>
-                        <td>${jenis}</td>
-                        <td class="text-center font-bold text-emerald-700">${Number(t.qty3kg || 0)}</td>
-                        <td class="text-center font-bold text-amber-700">${Number(t.qtyKosongDiambil || 0)}</td>
-                        <td class="text-right">Rp ${hpp.toLocaleString('id-ID')}</td>
-                        <td class="text-right">Rp ${harga.toLocaleString('id-ID')}</td>
-                        <td class="text-right font-bold">Rp ${total.toLocaleString('id-ID')}</td>
-                        <td class="text-right font-bold text-emerald-700">Rp ${bayar.toLocaleString('id-ID')}</td>
-                        <td class="text-right font-bold ${sisa > 0 ? 'text-rose-600' : 'text-slate-500'}">Rp ${sisa.toLocaleString('id-ID')}</td>
-                        <td>
-                            <span class="inline-flex px-2.5 py-1 rounded-lg text-[9px] font-bold ${sisa <= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'}">
-                                ${status}
-                            </span>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
+    return `
+        <tr>
+            <td class="text-center">${i + 1}</td>
+            <td>${t.date || '-'}</td>
+            <td>${jenis}</td>
+            <td class="text-center font-bold text-emerald-700">
+                ${Number(t.qty3kg || 0)}
+            </td>
+            <td class="text-center font-bold text-amber-700">
+                ${Number(t.qtyKosongDiambil || 0)}
+            </td>
+            <td class="text-right">
+                Rp ${hpp.toLocaleString('id-ID')}
+            </td>
+            <td class="text-right">
+                Rp ${harga.toLocaleString('id-ID')}
+            </td>
+            <td class="text-right font-bold">
+                Rp ${total.toLocaleString('id-ID')}
+            </td>
+            <td class="text-right font-bold text-emerald-700">
+                Rp ${bayar.toLocaleString('id-ID')}
+            </td>
+            <td class="text-right font-bold ${sisa > 0 ? 'text-rose-600' : 'text-slate-500'}">
+                Rp ${sisa.toLocaleString('id-ID')}
+            </td>
+            <td>
+                <span class="inline-flex px-2.5 py-1 rounded-lg text-[9px] font-bold ${
+                    sisa <= 0
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                        : 'bg-rose-50 text-rose-700 border border-rose-100'
+                }">
+                    ${status}
+                </span>
+            </td>
+
+            <!-- Hanya Admin Pangkalan yang mendapat tombol hapus -->
+            <td class="text-center no-print">
+                ${
+                    db.currentUser?.role === 'admin'
+                    ? `
+                        <button
+                            type="button"
+                            onclick='confirmDeleteTransaction(${JSON.stringify(t.id)})'
+                            class="inline-flex items-center justify-center w-8 h-8 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg border border-rose-200"
+                            title="Hapus transaksi">
+                            <i class="fa-solid fa-trash text-xs"></i>
+                        </button>
+                    `
+                    : ''
+                }
+            </td>
+        </tr>
+    `;
+}).join('');
 
             showModal(
                 `Histori Transaksi - ${warungName}`,
@@ -4107,6 +4165,7 @@ function saveEditedAllocations(pId) {
                                         <th>Telah Dibayar</th>
                                         <th>Sisa Tagihan</th>
                                         <th>Status</th>
+                                        <th class="no-print text-center">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>${rows}</tbody>
@@ -4121,6 +4180,206 @@ function saveEditedAllocations(pId) {
                 `
             );
         }
+
+        function confirmDeleteTransaction(transactionId) {
+    const db = getDB();
+    const user = db.currentUser;
+
+    // Hanya Admin Pangkalan
+    if (!user || user.role !== 'admin') {
+        showAlert(
+            'Akses Ditolak',
+            'Hanya Admin Pangkalan yang dapat menghapus transaksi.',
+            'error'
+        );
+        return;
+    }
+
+    const pangId = user.pangkalanId;
+
+    if (!pangId) {
+        showAlert(
+            'Gagal',
+            'Pangkalan aktif tidak ditemukan.',
+            'error'
+        );
+        return;
+    }
+
+    const transaction = (db.transactions || []).find(t =>
+        String(t.id) === String(transactionId) &&
+        String(t.pangkalanId) === String(pangId)
+    );
+
+    if (!transaction) {
+        showAlert(
+            'Gagal',
+            'Transaksi tidak ditemukan pada pangkalan ini.',
+            'error'
+        );
+        return;
+    }
+
+    const qtyIsi = Number(transaction.qty3kg || 0);
+    const qtyKosong = Number(transaction.qtyKosongDiambil || 0);
+    const total = Number(transaction.totalHarga || 0);
+
+    showModal(
+        'Hapus Transaksi',
+        'Konfirmasi penghapusan transaksi penjualan.',
+        'fa-triangle-exclamation',
+        'bg-rose-100 text-rose-600',
+        `
+            <div class="space-y-4">
+
+                <div class="p-4 bg-rose-50 rounded-2xl border border-rose-200">
+                    <p class="font-bold text-rose-800">
+                        Hapus transaksi ini?
+                    </p>
+
+                    <div class="mt-3 space-y-2 text-xs text-slate-600">
+                        <div class="flex justify-between">
+                            <span>Tanggal</span>
+                            <b>${transaction.date || '-'}</b>
+                        </div>
+
+                        <div class="flex justify-between">
+                            <span>Tabung Isi</span>
+                            <b class="text-emerald-700">
+                                ${qtyIsi} unit
+                            </b>
+                        </div>
+
+                        <div class="flex justify-between">
+                            <span>Tabung Kosong</span>
+                            <b class="text-amber-700">
+                                ${qtyKosong} unit
+                            </b>
+                        </div>
+
+                        <div class="flex justify-between">
+                            <span>Total</span>
+                            <b>
+                                Rp ${total.toLocaleString('id-ID')}
+                            </b>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p class="text-xs text-amber-800">
+                        <i class="fa-solid fa-circle-info mr-1"></i>
+                        Transaksi akan dihapus dari histori.
+                        Perhitungan stok pangkalan akan otomatis
+                        kembali mengikuti transaksi yang tersisa.
+                    </p>
+                </div>
+
+                <div class="flex gap-3">
+                    <button
+                        type="button"
+                        onclick="closeModal()"
+                        class="w-1/2 py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl">
+                        Batal
+                    </button>
+
+                    <button
+                        type="button"
+                        onclick='deletePangkalanTransaction(${JSON.stringify(transaction.id)})'
+                        class="w-1/2 py-3.5 bg-rose-600 text-white font-bold rounded-xl">
+                        Ya, Hapus
+                    </button>
+                </div>
+
+            </div>
+        `
+    );
+}
+
+        function deletePangkalanTransaction(transactionId) {
+    const db = getDB();
+    const user = db.currentUser;
+
+    // =========================================================
+    // KEAMANAN: HANYA ADMIN PANGKALAN
+    // =========================================================
+
+    if (!user || user.role !== 'admin') {
+        showAlert(
+            'Akses Ditolak',
+            'Hanya Admin Pangkalan yang dapat menghapus transaksi.',
+            'error'
+        );
+        return;
+    }
+
+    const pangId = user.pangkalanId;
+
+    if (!pangId) {
+        showAlert(
+            'Gagal',
+            'Pangkalan aktif tidak ditemukan.',
+            'error'
+        );
+        return;
+    }
+
+    // =========================================================
+    // CARI TRANSAKSI
+    // =========================================================
+
+    const index = (db.transactions || []).findIndex(t =>
+        String(t.id) === String(transactionId) &&
+        String(t.pangkalanId) === String(pangId)
+    );
+
+    if (index === -1) {
+        showAlert(
+            'Gagal',
+            'Transaksi tidak ditemukan pada pangkalan ini.',
+            'error'
+        );
+        return;
+    }
+
+    const transaction = db.transactions[index];
+
+    // =========================================================
+    // HAPUS TRANSAKSI
+    // =========================================================
+
+    db.transactions.splice(index, 1);
+
+    // =========================================================
+    // SIMPAN
+    // =========================================================
+
+    try {
+        saveDB(db);
+
+        closeModal();
+
+        showAlert(
+            'Transaksi Dihapus',
+            'Transaksi berhasil dihapus. Stok pangkalan akan kembali mengikuti histori transaksi yang tersisa.'
+        );
+
+        render();
+
+    } catch (error) {
+
+        console.error(
+            'Gagal menghapus transaksi:',
+            error
+        );
+
+        showAlert(
+            'Gagal',
+            error.message || 'Transaksi gagal dihapus.',
+            'error'
+        );
+    }
+}
 
 
         function printWarungHistory() {
