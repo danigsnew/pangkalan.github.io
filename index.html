@@ -6189,78 +6189,28 @@ function submitEditTransaction(e, trxId) {
                 phone: '0812345678'
             };
 
-            // Jangan biarkan snapshot saveDB lama menimpa hasil penambahan.
-            stopAdminCloudAutoRefresh();
-            clearTimeout(cloudSaveTimer);
-            cloudSaveTimer = null;
-            cloudSavePending = null;
+            /*
+             * PERBAIKAN FRONTEND:
+             * Pelanggan sekarang langsung dimasukkan ke db.customers.
+             * Sebelumnya fungsi hanya mengirim ACTION:addCustomer ke Apps Script,
+             * sehingga UI tidak memiliki record pelanggan untuk dirender.
+             *
+             * Apps Script belum diubah pada tahap ini.
+             * saveDB() tetap menggunakan mekanisme sinkronisasi cloud yang sudah ada.
+             */
+            db.customers = Array.isArray(db.customers) ? db.customers : [];
+            db.customers.push(customer);
 
-            try {
-                while (cloudSaveInFlight) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
+            saveDB(db);
 
-                const responseBody = JSON.stringify({
-                    action: 'addCustomer',
-                    customer,
-                    pangkalanId: String(pangId),
-                    actor: actor ? {
-                        role: actor.role || null,
-                        id: actor.id || null,
-                        pangkalanId: actor.pangkalanId || null,
-                        name: actor.name || null
-                    } : null
-                });
+            closeModal();
 
-                await fetch(API_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    cache: 'no-store',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: responseBody
-                });
+            showAlert(
+                'Berhasil Ditambahkan',
+                `${type === 'warung' ? 'Warung' : 'Pelanggan'} "${name}" berhasil ditambahkan ke daftar pelanggan.`
+            );
 
-                // Apps Script menulis DATABASE!A1 secara sinkron.
-                // Baca ulang database pusat dengan beberapa percobaan GET
-                // untuk menghindari cache/latensi sementara.
-                let saved = false;
-                let cloudDB = getDB();
-
-                for (let attempt = 0; attempt < 3 && !saved; attempt++) {
-                    await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 500 : 800));
-                    const loaded = await loadDBFromCloud();
-                    if (!loaded) continue;
-
-                    cloudDB = getDB();
-                    saved = (cloudDB.customers || []).some(c =>
-                        String(c.id) === String(customer.id) &&
-                        String(c.pangkalanId) === String(pangId)
-                    );
-                }
-
-                if (!saved) {
-                    throw new Error(
-                        `Pelanggan "${name}" belum terlihat pada pembacaan database pusat. ` +
-                        `Jika username "${username}" baru, cek Log eksekusi Apps Script untuk ACTION: addCustomer.`
-                    );
-                }
-
-                closeModal();
-                showAlert(
-                    'Berhasil Ditambahkan',
-                    `${type === 'warung' ? 'Warung' : 'Pelanggan'} "${name}" berhasil ditambahkan.`
-                );
-                render();
-
-            } catch (error) {
-                console.error('Gagal menambahkan customer:', error);
-                await loadDBFromCloud();
-                render();
-                showAlert('Gagal Menambahkan', error.message || 'Pelanggan gagal ditambahkan ke database pusat.', 'error');
-            } finally {
-                customerDeletionInProgress = false;
-                startAdminCloudAutoRefresh();
-            }
+            render();
         }
 
         function openWarungRetailSaleModal() {
