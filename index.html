@@ -2197,6 +2197,20 @@ body:not(.theme-dark) .login-panel button[type="submit"] {
     }
 
 }
+
+        /* =========================================================
+   DARK MODE — SAMAKAN BACKGROUND BODY DASHBOARD
+   HANYA BACKGROUND
+   TIDAK MENYENTUH CARD / TEKS / HEADER
+   ========================================================= */
+
+body.theme-dark,
+body.theme-dark #app,
+body.theme-dark #app > div:has(> header),
+body.theme-dark #app > div:has(> header) > main {
+    background: #1f252d !important;
+    background-color: #1f252d !important;
+}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-full flex flex-col antialiased selection:bg-emerald-500 selection:text-white custom-scrollbar">
