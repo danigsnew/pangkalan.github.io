@@ -2064,6 +2064,109 @@ body:not(.theme-dark) .login-panel button[type="submit"] {
     }
 
 }
+
+        /* =========================================================
+   DESKTOP LIGHT MODE
+   CARD TEXT CONTRAST
+   HANYA MODE TERANG — DESKTOP
+   ========================================================= */
+
+@media (min-width: 1024px) {
+
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white {
+
+        /* Judul / label card */
+        color: #1f2937 !important;
+    }
+
+    /* Label kecil seperti:
+       TABUNG TERSEBAR DI WARUNG
+       STOK GAS ISI (GUDANG)
+       PERMINTAAN WARUNG MENUNGGU
+    */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-slate-400 {
+        color: #64748b !important;
+    }
+
+    /* Teks informasi */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-slate-500 {
+        color: #475569 !important;
+    }
+
+    /* Teks utama / label penting */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-slate-600 {
+        color: #334155 !important;
+    }
+
+    /* Teks tebal */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-slate-700,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-slate-800 {
+        color: #1f2937 !important;
+    }
+
+    /* Jika ada teks tanpa kelas warna */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white p,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white span,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white label {
+        color: #475569;
+    }
+
+    /* Heading card dibuat lebih tegas */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white h3,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white h4 {
+        color: #374151 !important;
+    }
+
+    /* Angka utama tetap memakai warna status */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-emerald-600,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-emerald-700 {
+        color: #047857 !important;
+    }
+
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-amber-600,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-amber-700 {
+        color: #c2410c !important;
+    }
+
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-rose-600,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main
+    .bg-white .text-red-600 {
+        color: #dc2626 !important;
+    }
+}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-full flex flex-col antialiased selection:bg-emerald-500 selection:text-white custom-scrollbar">
