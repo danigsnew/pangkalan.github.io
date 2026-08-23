@@ -1592,6 +1592,23 @@
     }
 
 }
+
+        /* =========================================================
+   MOBILE — HEADER TETAP SAAT SCROLL
+   HANYA MOBILE
+   LIGHT & DARK MODE
+   DESKTOP TIDAK DISENTUH
+   ========================================================= */
+
+@media (max-width: 1023px) {
+
+    #app > div:has(> header) > header {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 100 !important;
+    }
+
+}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-full flex flex-col antialiased selection:bg-emerald-500 selection:text-white custom-scrollbar">
