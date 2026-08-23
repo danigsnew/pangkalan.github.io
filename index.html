@@ -1854,15 +1854,26 @@ body:not(.theme-dark) .login-panel button[type="submit"] {
 
 }
 
-        /* =========================================================
-   DESKTOP LIGHT MODE — FINAL COLOR & CONTRAST
-   KHUSUS DASHBOARD
-   MOBILE & DARK MODE TIDAK DISENTUH
+   /* =========================================================
+   DESKTOP LIGHT MODE — DASHBOARD
+   HANYA WARNA & KONTRAS
+   MOBILE + DARK MODE TIDAK DISENTUH
    ========================================================= */
 
 @media (min-width: 1024px) {
 
-    /* Hanya dashboard, bukan halaman login */
+    /* -----------------------------------------------------
+       BACKGROUND HALAMAN
+       ----------------------------------------------------- */
+
+    body:not(.theme-dark):not(:has(.login-shell)) {
+        background: #f5f7f8 !important;
+    }
+
+    body:not(.theme-dark):not(:has(.login-shell)) #app {
+        background: #f5f7f8 !important;
+    }
+
     body:not(.theme-dark):not(:has(.login-shell))
     #app > div:has(> header) {
         background: #f5f7f8 !important;
@@ -1876,221 +1887,164 @@ body:not(.theme-dark) .login-panel button[type="submit"] {
     }
 
 
-    /* =====================================================
+    /* -----------------------------------------------------
        HEADER
-       ===================================================== */
+       ----------------------------------------------------- */
 
     body:not(.theme-dark):not(:has(.login-shell))
     #app > div:has(> header) > header {
         background: #ffffff !important;
         color: #1f2937 !important;
-        border-bottom: 1px solid #e5e7eb !important;
-        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06) !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, .06) !important;
     }
 
 
-    /* =====================================================
-       HERO / CONTAINER PALING ATAS
-       ===================================================== */
+    /* -----------------------------------------------------
+       HERO SAJA
+       ----------------------------------------------------- */
 
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main > div:first-child {
+    #app > div:has(> header) > main > div > div:first-child {
         background:
             linear-gradient(
                 110deg,
                 #047857 0%,
-                #075e59 42%,
-                #0f2745 100%
+                #08665d 45%,
+                #102746 100%
             ) !important;
 
         color: #ffffff !important;
         border-radius: 20px !important;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.10) !important;
     }
 
-    /* Semua teks di hero harus terang */
+    /* teks hero */
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main > div:first-child h1,
+    #app > div:has(> header) > main > div > div:first-child h1,
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main > div:first-child h2,
+    #app > div:has(> header) > main > div > div:first-child h2,
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main > div:first-child h3,
-    body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main > div:first-child p,
-    body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main > div:first-child span {
+    #app > div:has(> header) > main > div > div:first-child h3 {
         color: #ffffff !important;
     }
 
-    /* Judul utama hero */
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main > div:first-child h1 {
-        font-weight: 800 !important;
-        letter-spacing: -0.02em !important;
-    }
-
-    /* Deskripsi hero */
-    body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main > div:first-child p {
+    #app > div:has(> header) > main > div > div:first-child p {
         color: #e2f5f0 !important;
     }
 
 
-    /* =====================================================
-       CARD DASHBOARD
-       ===================================================== */
+    /* -----------------------------------------------------
+       CARD PUTIH
+       ----------------------------------------------------- */
 
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .rounded-3xl,
-    body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .rounded-2xl {
-        color: #1f2937;
-    }
-
-    /* Background card putih */
-    body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-white {
+    #app > div:has(> header) > main .bg-white {
         background: #ffffff !important;
         color: #1f2937 !important;
         border-color: #dbe3e8 !important;
-        box-shadow:
-            0 4px 14px rgba(15, 23, 42, 0.05) !important;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, .05) !important;
     }
 
 
-    /* =====================================================
-       TEKS CARD
-       ===================================================== */
+    /* -----------------------------------------------------
+       TEKS CARD — KONTRAS
+       ----------------------------------------------------- */
 
-    /* Judul kecil card */
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-white .text-slate-400 {
+    #app > div:has(> header) > main .bg-white
+    .text-slate-400 {
         color: #64748b !important;
     }
 
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-white .text-slate-500 {
+    #app > div:has(> header) > main .bg-white
+    .text-slate-500 {
         color: #475569 !important;
     }
 
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-white .text-slate-600 {
+    #app > div:has(> header) > main .bg-white
+    .text-slate-600 {
         color: #334155 !important;
     }
 
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-white .text-slate-700 {
+    #app > div:has(> header) > main .bg-white
+    .text-slate-700,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main .bg-white
+    .text-slate-800 {
         color: #1f2937 !important;
     }
 
-    body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-white .text-slate-800 {
-        color: #111827 !important;
-    }
 
-
-    /* =====================================================
-       ANGKA UTAMA
-       ===================================================== */
+    /* -----------------------------------------------------
+       WARNA ANGKA / STATUS
+       ----------------------------------------------------- */
 
     body:not(.theme-dark):not(:has(.login-shell))
     #app > div:has(> header) > main
-    .bg-white .text-emerald-600,
+    .text-emerald-600,
     body:not(.theme-dark):not(:has(.login-shell))
     #app > div:has(> header) > main
-    .bg-white .text-emerald-700 {
+    .text-emerald-700 {
         color: #047857 !important;
     }
 
     body:not(.theme-dark):not(:has(.login-shell))
     #app > div:has(> header) > main
-    .bg-white .text-amber-600,
+    .text-amber-600,
     body:not(.theme-dark):not(:has(.login-shell))
     #app > div:has(> header) > main
-    .bg-white .text-amber-700 {
+    .text-amber-700 {
         color: #c2410c !important;
     }
 
     body:not(.theme-dark):not(:has(.login-shell))
     #app > div:has(> header) > main
-    .bg-white .text-rose-500,
+    .text-rose-500,
     body:not(.theme-dark):not(:has(.login-shell))
     #app > div:has(> header) > main
-    .bg-white .text-rose-600,
+    .text-rose-600,
     body:not(.theme-dark):not(:has(.login-shell))
     #app > div:has(> header) > main
-    .bg-white .text-red-600 {
+    .text-red-600 {
         color: #dc2626 !important;
     }
 
 
-    /* =====================================================
-       GARIS PEMISAH
-       ===================================================== */
+    /* -----------------------------------------------------
+       STATUS BACKGROUND
+       ----------------------------------------------------- */
 
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-white .border-slate-200,
-    body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-white .border-slate-300 {
-        border-color: #dbe3e8 !important;
-    }
-
-
-    /* =====================================================
-       AREA STATUS HIJAU
-       ===================================================== */
-
-    body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-emerald-50 {
+    #app > div:has(> header) > main .bg-emerald-50 {
         background: #ecfdf5 !important;
         color: #065f46 !important;
         border-color: #a7f3d0 !important;
     }
 
-
-    /* =====================================================
-       AREA STATUS KUNING
-       ===================================================== */
-
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-amber-50 {
+    #app > div:has(> header) > main .bg-amber-50 {
         background: #fffbeb !important;
         color: #92400e !important;
         border-color: #fde68a !important;
     }
 
-
-    /* =====================================================
-       AREA STATUS MERAH
-       ===================================================== */
-
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-rose-50,
+    #app > div:has(> header) > main .bg-rose-50,
     body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-red-50 {
+    #app > div:has(> header) > main .bg-red-50 {
         background: #fff1f2 !important;
         color: #991b1b !important;
         border-color: #fecdd3 !important;
     }
 
 
-    /* =====================================================
-       BUTTON UTAMA
-       ===================================================== */
+    /* -----------------------------------------------------
+       TOMBOL
+       ----------------------------------------------------- */
 
     body:not(.theme-dark):not(:has(.login-shell))
     #app > div:has(> header) > main
@@ -2107,31 +2061,6 @@ body:not(.theme-dark) .login-panel button[type="submit"] {
     button.bg-amber-500 {
         background: #f59e0b !important;
         color: #1f2937 !important;
-    }
-
-
-    /* =====================================================
-       ALERT / PERMINTAAN DI BAGIAN BAWAH
-       ===================================================== */
-
-    body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-amber-50\/50 {
-        background: #fffbeb !important;
-        color: #78350f !important;
-        border-color: #fde68a !important;
-    }
-
-
-    /* =====================================================
-       HOVER CARD
-       ===================================================== */
-
-    body:not(.theme-dark):not(:has(.login-shell))
-    #app > div:has(> header) > main
-    .bg-white:hover {
-        box-shadow:
-            0 8px 22px rgba(15, 23, 42, 0.08) !important;
     }
 
 }
