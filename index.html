@@ -2170,7 +2170,7 @@ function getWarungInventory(customerId) {
             userInp.value = pang?.username || '';
         }
 
-      function toggleLoginPassword() {
+     function toggleLoginPassword() {
 
     const passwordInput =
         document.getElementById('loginPassword');
@@ -2184,82 +2184,52 @@ function getWarungInventory(customerId) {
     if (!passwordInput || !visibleInput) return;
 
 
-    /*
-     * Simpan posisi halaman.
-     * Ini penting untuk browser mobile
-     * yang kadang melakukan auto-scroll
-     * ketika elemen password berubah.
-     */
+    // Simpan posisi halaman agar tidak bergeser
     const scrollX = window.scrollX;
     const scrollY = window.scrollY;
 
 
-    /*
-     * MODE PASSWORD → TERLIHAT
-     */
-    if (!passwordInput.classList.contains('hidden')) {
+    // PASSWORD → TERLIHAT
+    if (passwordInput.style.display !== 'none') {
 
-        visibleInput.value =
-            passwordInput.value;
+        // Salin isi password
+        visibleInput.value = passwordInput.value;
 
-        passwordInput.classList.add('hidden');
+        // Sembunyikan input password
+        passwordInput.style.display = 'none';
 
-        visibleInput.classList.remove('hidden');
-
-
-        /*
-         * Mata TETAP mata.
-         * Tidak ada slash.
-         * Tidak ada animasi.
-         * Tidak ada perubahan posisi.
-         */
-        if (eyeIcon) {
-            eyeIcon.className =
-                'fa-solid fa-eye text-[15px]';
-        }
+        // Tampilkan input teks
+        visibleInput.style.display = 'block';
 
     }
 
-    /*
-     * MODE TERLIHAT → PASSWORD
-     */
+    // TERLIHAT → PASSWORD
     else {
 
-        passwordInput.value =
-            visibleInput.value;
+        // Kembalikan isi ke input password
+        passwordInput.value = visibleInput.value;
 
-        visibleInput.classList.add('hidden');
+        // Sembunyikan input teks
+        visibleInput.style.display = 'none';
 
-        passwordInput.classList.remove('hidden');
-
-
-        /*
-         * Mata tetap sama.
-         */
-        if (eyeIcon) {
-            eyeIcon.className =
-                'fa-solid fa-eye text-[15px]';
-        }
-
+        // Tampilkan input password
+        passwordInput.style.display = 'block';
     }
 
 
-    /*
-     * Jangan biarkan browser memindahkan
-     * posisi halaman setelah tombol disentuh.
-     */
-    window.scrollTo(
-        scrollX,
-        scrollY
-    );
+    // Ikon SELALU mata biasa
+    if (eyeIcon) {
+        eyeIcon.className =
+            'fa-solid fa-eye text-[15px]';
+    }
+
+
+    // Kembalikan posisi halaman
+    window.scrollTo(scrollX, scrollY);
 
     requestAnimationFrame(() => {
-        window.scrollTo(
-            scrollX,
-            scrollY
-        );
+        window.scrollTo(scrollX, scrollY);
     });
-
 }
 
         function handleLogout() {
@@ -2728,33 +2698,33 @@ function stopAdminCloudAutoRefresh() {
 
         <!-- PASSWORD TERLIHAT -->
         <input
-            type="text"
-            id="loginPasswordVisible"
-            placeholder="Masukkan password"
-            autocomplete="off"
-            tabindex="-1"
-            aria-hidden="true"
-            class="
-                hidden
-                w-full
-                h-[52px]
-                px-4
-                pr-12
-                bg-slate-800
-                lg:bg-slate-50
-                border
-                border-slate-700
-                lg:border-slate-200
-                rounded-2xl
-                text-sm
-                font-medium
-                text-slate-100
-                lg:text-slate-800
-                placeholder:text-slate-500
-                lg:placeholder:text-slate-400
-                focus:outline-none
-            "
-        >
+    type="text"
+    id="loginPasswordVisible"
+    placeholder="Masukkan password"
+    autocomplete="off"
+    tabindex="-1"
+    aria-hidden="true"
+    style="display:none;"
+    class="
+        w-full
+        h-[52px]
+        px-4
+        pr-12
+        bg-slate-800
+        lg:bg-slate-50
+        border
+        border-slate-700
+        lg:border-slate-200
+        rounded-2xl
+        text-sm
+        font-medium
+        text-slate-100
+        lg:text-slate-800
+        placeholder:text-slate-500
+        lg:placeholder:text-slate-400
+        focus:outline-none
+    "
+>
 
         <!-- TOMBOL MATA -->
         <button
