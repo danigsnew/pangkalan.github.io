@@ -1537,6 +1537,44 @@
         max-width: 480px !important;
     }
 }
+        /* =========================================================
+   DASHBOARD DESKTOP POLISH
+   Header tetap terlihat saat scroll
+   Hilangkan background putih di sisi halaman
+   HANYA TAMPILAN - TIDAK MENYENTUH LOGIKA
+   ========================================================= */
+
+@media (min-width: 1024px) {
+
+    /* Background seluruh halaman dashboard */
+    body:has(#app > div > header) {
+        background: #1f252d !important;
+    }
+
+    /* Container dashboard */
+    #app > div:has(> header) {
+        background: #1f252d !important;
+        min-height: 100vh !important;
+    }
+
+    /* HEADER SELALU MENEMPEL DI ATAS */
+    #app > div:has(> header) > header {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 100 !important;
+
+        background: #1f252d !important;
+        border-bottom: 1px solid #374151 !important;
+
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18) !important;
+    }
+
+    /* Area utama dashboard */
+    #app > div:has(> header) > main {
+        background: transparent !important;
+    }
+
+}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-full flex flex-col antialiased selection:bg-emerald-500 selection:text-white custom-scrollbar">
