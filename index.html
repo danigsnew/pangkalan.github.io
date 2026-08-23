@@ -2170,46 +2170,21 @@ function getWarungInventory(customerId) {
             userInp.value = pang?.username || '';
         }
 
-    function toggleLoginPassword(event) {
-
-    if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-    }
+    function toggleLoginPassword() {
 
     const passwordInput =
         document.getElementById('loginPassword');
 
-    const eyeIcon =
-        document.getElementById('loginPasswordEye');
-
     if (!passwordInput) return;
 
+    if (passwordInput.type === 'password') {
 
-    // Cek kondisi password saat ini
-    const isHidden =
-        passwordInput.style.webkitTextSecurity === 'disc';
-
-
-    if (isHidden) {
-
-        // Tampilkan password
-        passwordInput.style.webkitTextSecurity = 'none';
+        passwordInput.type = 'text';
 
     } else {
 
-        // Sembunyikan password
-        passwordInput.style.webkitTextSecurity = 'disc';
-
+        passwordInput.type = 'password';
     }
-
-
-    // Mata tetap diam dan selalu ikon mata biasa
-    if (eyeIcon) {
-        eyeIcon.className =
-            'fa-solid fa-eye text-[15px]';
-    }
-
 }
         function handleLogout() {
             const db = getDB();
@@ -2640,110 +2615,41 @@ function stopAdminCloudAutoRefresh() {
         Password
     </label>
 
+    <div>
+    <label
+        class="block text-xs font-semibold text-slate-300 lg:text-slate-600 mb-1.5">
+        Password
+    </label>
+
     <div class="relative">
 
-        <!-- PASSWORD TERSEMBUNYI -->
         <input
-            type="text"
+            type="password"
+            id="loginPassword"
             placeholder="Masukkan password"
             autocomplete="current-password"
             required
-            style="-webkit-text-security: disc;"
-            class="
-                w-full
-                h-[52px]
-                px-4
-                pr-12
-                bg-slate-800
-                lg:bg-slate-50
-                border
-                border-slate-700
-                lg:border-slate-200
-                rounded-2xl
-                text-sm
-                font-medium
-                text-slate-100
-                lg:text-slate-800
-                placeholder:text-slate-500
-                lg:placeholder:text-slate-400
-                focus:outline-none
-                focus:border-emerald-500
-                focus:ring-2
-                focus:ring-emerald-500/20
-                lg:focus:ring-emerald-100
-                transition
-            "
+            class="w-full h-[52px] px-4 pr-14 bg-slate-800 lg:bg-slate-50 border border-slate-700 lg:border-slate-200 rounded-2xl text-sm font-medium text-slate-100 lg:text-slate-800 placeholder:text-slate-500 lg:placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 lg:focus:ring-emerald-100"
         >
 
-        <!-- PASSWORD TERLIHAT -->
-        <input
-    type="text"
-    id="loginPasswordVisible"
-    placeholder="Masukkan password"
-    autocomplete="off"
-    tabindex="-1"
-    aria-hidden="true"
-    style="display:none;"
-    class="
-        w-full
-        h-[52px]
-        px-4
-        pr-12
-        bg-slate-800
-        lg:bg-slate-50
-        border
-        border-slate-700
-        lg:border-slate-200
-        rounded-2xl
-        text-sm
-        font-medium
-        text-slate-100
-        lg:text-slate-800
-        placeholder:text-slate-500
-        lg:placeholder:text-slate-400
-        focus:outline-none
-    "
->
-
-        <!-- TOMBOL MATA -->
         <button
             type="button"
-            tabindex="-1"
-            aria-label="Lihat password"
+            onmousedown="event.preventDefault()"
             onclick="toggleLoginPassword()"
-            onmousedown="return false"
-            ontouchstart="return false"
-            class="
-                absolute
-                right-2
-                top-1/2
-                -translate-y-1/2
-                w-10
-                h-10
-                flex
-                items-center
-                justify-center
-                text-slate-400
-                p-0
-                m-0
-                border-0
-                outline-none
-                focus:outline-none
-                focus:ring-0
-                active:outline-none
-                active:ring-0
-            "
-            style="
-                -webkit-tap-highlight-color: transparent;
-                -webkit-touch-callout: none;
-                user-select: none;
-            "
+            aria-label="Lihat password"
+            class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-slate-400 p-0 m-0 border-0 bg-transparent outline-none focus:outline-none focus:ring-0 active:outline-none active:ring-0"
+            style="-webkit-tap-highlight-color: transparent;"
         >
             <i
                 id="loginPasswordEye"
-                class="fa-solid fa-eye text-[15px]"
-            ></i>
+                class="fa-solid fa-eye text-[15px]">
+            </i>
         </button>
+
+    </div>
+</div>
+
+     
 
     </div>
 
