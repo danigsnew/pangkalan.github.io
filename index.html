@@ -1575,6 +1575,23 @@
     }
 
 }
+        /* =========================================================
+   MOBILE LIGHT MODE — SATUKAN BODY DASHBOARD
+   HANYA MOBILE LIGHT
+   DARK MODE & DESKTOP TIDAK DISENTUH
+   ========================================================= */
+
+@media (max-width: 1023px) {
+
+    body:not(.theme-dark),
+    body:not(.theme-dark) #app,
+    body:not(.theme-dark) #app > div:has(> header),
+    body:not(.theme-dark) #app > div:has(> header) > main {
+        background: #f3f5f4 !important;
+        background-color: #f3f5f4 !important;
+    }
+
+}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-full flex flex-col antialiased selection:bg-emerald-500 selection:text-white custom-scrollbar">
