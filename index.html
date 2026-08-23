@@ -2211,6 +2211,27 @@ body.theme-dark #app > div:has(> header) > main {
     background: #1f252d !important;
     background-color: #1f252d !important;
 }
+
+        /* =========================================================
+   DARK MODE — SAMAKAN BACKGROUND SELURUH HALAMAN
+   HANYA BACKGROUND BODY
+   ========================================================= */
+
+html:has(body.theme-dark),
+body.theme-dark {
+    background: #1f252d !important;
+    background-color: #1f252d !important;
+}
+
+body.theme-dark #app {
+    background: #1f252d !important;
+    background-color: #1f252d !important;
+}
+
+body.theme-dark #app > div {
+    background: #1f252d !important;
+    background-color: #1f252d !important;
+}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-full flex flex-col antialiased selection:bg-emerald-500 selection:text-white custom-scrollbar">
