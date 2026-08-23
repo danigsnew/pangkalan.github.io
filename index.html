@@ -1732,6 +1732,102 @@ body:not(.theme-dark) .login-panel button[type="submit"] {
     }
 
 }
+        /* =========================================================
+   DESKTOP LIGHT MODE — DASHBOARD POLISH
+   HANYA DESKTOP
+   MOBILE & DARK MODE TIDAK DISENTUH
+   ========================================================= */
+
+@media (min-width: 1024px) {
+
+    /* BODY / AREA DASHBOARD */
+    body:not(.theme-dark):not(:has(.login-shell)),
+    body:not(.theme-dark):not(:has(.login-shell)) #app,
+    body:not(.theme-dark):not(:has(.login-shell)) #app > div:has(> header),
+    body:not(.theme-dark):not(:has(.login-shell)) #app > div:has(> header) > main {
+        background: #f3f5f4 !important;
+        color: #263330 !important;
+    }
+
+    /* HEADER */
+    body:not(.theme-dark):not(:has(.login-shell)) #app > div:has(> header) > header {
+        background: #ffffff !important;
+        border-bottom-color: #d6dfdc !important;
+        box-shadow: 0 2px 12px rgba(31, 41, 55, .06) !important;
+    }
+
+    /* SEMUA CARD PUTIH */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) .bg-white {
+        background-color: #ffffff !important;
+        border-color: #d6dfdc !important;
+    }
+
+    /* JUDUL CARD */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) h1,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) h2,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) h3,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) h4 {
+        color: #263330 !important;
+    }
+
+    /* TEKS INFORMASI */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) p {
+        color: #64736f !important;
+    }
+
+    /* LABEL / TEKS KECIL */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) .text-slate-400 {
+        color: #71807c !important;
+    }
+
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) .text-slate-500 {
+        color: #5f6d69 !important;
+    }
+
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) .text-slate-600 {
+        color: #4b5955 !important;
+    }
+
+    /* TEKS GELAP */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) .text-slate-700,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) .text-slate-800,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) .text-slate-900 {
+        color: #263330 !important;
+    }
+
+    /* BORDER */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) .border-slate-200,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) .border-slate-300 {
+        border-color: #d6dfdc !important;
+    }
+
+    /* AREA INPUT / SELECT */
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) input,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) select,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) textarea {
+        background: #ffffff !important;
+        color: #263330 !important;
+        border-color: #cbd6d2 !important;
+    }
+
+}
     
 </style>
 </head>
