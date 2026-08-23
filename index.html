@@ -8,6 +8,108 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+
+        /* =========================================================
+           INVOICE THERMAL 58MM
+           Khusus print invoice transaksi.
+           ========================================================= */
+
+#transactionInvoicePrintRoot {
+    display: none;
+}
+
+@media print {
+
+    @page {
+        size: 58mm auto;
+        margin: 0;
+    }
+
+    body.printing-transaction-invoice > *:not(#transactionInvoicePrintRoot) {
+        display: none !important;
+    }
+
+    body.printing-transaction-invoice {
+        background: #fff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    body.printing-transaction-invoice
+    #transactionInvoicePrintRoot {
+        display: block !important;
+        width: 48mm !important;
+        margin: 0 auto !important;
+        padding: 3mm 0 !important;
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    .thermal-invoice {
+        width: 48mm;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 10px;
+        line-height: 1.35;
+        color: #000;
+    }
+
+    .thermal-center {
+        text-align: center;
+    }
+
+    .thermal-title {
+        font-size: 15px;
+        font-weight: 800;
+        margin-bottom: 2px;
+    }
+
+    .thermal-subtitle {
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .thermal-line {
+        border-top: 1px dashed #000;
+        margin: 7px 0;
+    }
+
+    .thermal-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 6px;
+        margin: 3px 0;
+    }
+
+    .thermal-row span:first-child {
+        flex: 1;
+    }
+
+    .thermal-row strong {
+        text-align: right;
+    }
+
+    .thermal-total {
+        font-weight: 800;
+        margin-top: 5px;
+    }
+
+    .thermal-sisa {
+        font-weight: 800;
+        font-size: 11px;
+    }
+
+    .thermal-status {
+        text-align: center;
+        font-weight: 900;
+        font-size: 12px;
+        margin: 7px 0;
+    }
+
+    .thermal-footer {
+        font-size: 9px;
+        margin-top: 8px;
+    }
+}
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 8px; }
@@ -3112,7 +3214,14 @@ function stopAdminCloudAutoRefresh() {
                 <i class="fa-solid fa-trash mr-1"></i>
                 Delete
             </button>
-        </button>
+             <button
+                type="button"
+                onclick="printTransactionInvoice('${t.id}')"
+                 class="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold rounded-lg text-[11px] transition">
+                <i class="fa-solid fa-receipt mr-1"></i>
+                Invoice
+            </button>
+    
 
         ${!isLunas
             ? `
@@ -5360,6 +5469,220 @@ toggleTransactionBuyerMode();
             'success'
         );
     }
+
+        function printTransactionInvoice(trxId) {
+    const db = getDB();
+
+    const trx = (db.transactions || []).find(
+        t => t.id === trxId
+    );
+
+    if (!trx || trx.deletedAt) {
+        showAlert(
+            'Invoice Tidak Tersedia',
+            'Transaksi tidak ditemukan atau sudah dibatalkan.',
+            'error'
+        );
+        return;
+    }
+
+    const customer =
+        (db.customers || []).find(
+            c => c.id === trx.customerId
+        );
+
+    const pangkalan =
+        (db.pangalans || []).find(
+            p => String(p.id) === String(trx.pangkalanId)
+        );
+
+    const pangkalanName =
+        pangkalan?.name ||
+        'Pangkalan';
+
+    const customerName =
+        customer?.name ||
+        trx.customerName ||
+        'Pelanggan';
+
+    const qtyIsi =
+        Number(trx.qty3kg || 0);
+
+    const qtyKosong =
+        Number(trx.qtyKosongDiambil || 0);
+
+    const hargaJual =
+        Number(trx.hargaJual || 0);
+
+    const totalHarga =
+        Number(trx.totalHarga || 0);
+
+    const bayar =
+        Number(trx.bayar || 0);
+
+    const sisa =
+        Math.max(
+            0,
+            totalHarga - bayar
+        );
+
+    const status =
+        sisa <= 0
+            ? 'LUNAS'
+            : 'KURANG';
+
+    const invoiceNumber =
+        `INV-${String(trx.date || '')
+            .replace(/-/g, '')}-${String(trx.id || '')
+            .replace('trx_', '')}`;
+
+    const formatRupiah = value =>
+        `Rp${Number(value || 0).toLocaleString('id-ID')}`;
+
+    const formatTanggal =
+        trx.date
+            ? new Date(
+                `${trx.date}T00:00:00`
+              ).toLocaleDateString(
+                'id-ID',
+                {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                }
+              )
+            : '-';
+
+    const printRoot =
+        document.createElement('div');
+
+    printRoot.id =
+        'transactionInvoicePrintRoot';
+
+    printRoot.innerHTML = `
+        <div class="thermal-invoice">
+
+            <div class="thermal-center">
+                <div class="thermal-title">
+                    ${pangkalanName}
+                </div>
+
+                <div class="thermal-subtitle">
+                    INVOICE PENJUALAN
+                </div>
+            </div>
+
+            <div class="thermal-line"></div>
+
+            <div class="thermal-row">
+                <span>No</span>
+                <strong>${invoiceNumber}</strong>
+            </div>
+
+            <div class="thermal-row">
+                <span>Tanggal</span>
+                <span>${formatTanggal}</span>
+            </div>
+
+            <div class="thermal-row">
+                <span>Pelanggan</span>
+                <strong>${customerName}</strong>
+            </div>
+
+            <div class="thermal-line"></div>
+
+            <div class="thermal-item">
+                <div class="thermal-row">
+                    <span>Tabung Isi</span>
+                    <strong>${qtyIsi} Unit</strong>
+                </div>
+
+                <div class="thermal-row">
+                    <span>Harga / Unit</span>
+                    <span>${formatRupiah(hargaJual)}</span>
+                </div>
+
+                <div class="thermal-row thermal-total">
+                    <span>Subtotal</span>
+                    <strong>${formatRupiah(totalHarga)}</strong>
+                </div>
+            </div>
+
+            <div class="thermal-line"></div>
+
+            <div class="thermal-row">
+                <span>Kosong Diambil</span>
+                <strong>${qtyKosong} Unit</strong>
+            </div>
+
+            <div class="thermal-line"></div>
+
+            <div class="thermal-row">
+                <span>Total</span>
+                <strong>${formatRupiah(totalHarga)}</strong>
+            </div>
+
+            <div class="thermal-row">
+                <span>Dibayar</span>
+                <strong>${formatRupiah(bayar)}</strong>
+            </div>
+
+            <div class="thermal-row thermal-sisa">
+                <span>Sisa Tagihan</span>
+                <strong>${formatRupiah(sisa)}</strong>
+            </div>
+
+            <div class="thermal-status">
+                ${status}
+            </div>
+
+            <div class="thermal-line"></div>
+
+            <div class="thermal-center thermal-footer">
+                Terima kasih
+                <br>
+                ${pangkalanName}
+            </div>
+
+        </div>
+    `;
+
+    document.body.appendChild(printRoot);
+
+    document.body.classList.add(
+        'printing-transaction-invoice'
+    );
+
+    const cleanup = () => {
+        document.body.classList.remove(
+            'printing-transaction-invoice'
+        );
+
+        printRoot.remove();
+
+        window.removeEventListener(
+            'afterprint',
+            cleanup
+        );
+    };
+
+    window.addEventListener(
+        'afterprint',
+        cleanup
+    );
+
+    try {
+        window.print();
+    } catch (err) {
+        cleanup();
+
+        showAlert(
+            'Print Gagal',
+            'Browser tidak dapat membuka dialog cetak.',
+            'error'
+        );
+    }
+}
 
         function openEditTransactionModal(trxId) {
     const db = getDB();
