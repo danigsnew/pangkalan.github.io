@@ -1626,6 +1626,19 @@
 
 }
 
+        /* Hanya blok Logika Otomatisasi Restorasi Stok Warung */
+body.theme-dark .restoration-stock-info h4 {
+    color: #a7f3d0 !important;
+}
+
+body.theme-dark .restoration-stock-info p {
+    color: #6ee7b7 !important;
+}
+
+body.theme-dark .restoration-stock-info p strong {
+    color: #6ee7b7 !important;
+}
+
     
 </style>
 </head>
@@ -4035,7 +4048,7 @@ return `
                         <div class="w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center text-xl shrink-0">
                             <i class="fa-solid fa-rotate-left"></i>
                         </div>
-                        <div class="flex-1">
+                        <div class="flex-1 restoration-stock-info">
                             <h4 class="font-bold text-emerald-950 text-sm">Logika Otomatisasi Restorasi Stok Warung</h4>
                             <p class="text-xs text-emerald-700 mt-0.5 leading-relaxed">
                                 Ketika kamu menjual gas ke warga, 1 Tabung Isi berubah menjadi 1 Tabung Kosong. Saat Pangkalan mengambil <strong>${inv.estimasiStokKosongWarung} tabung kosong</strong> dan menyuplai <strong>${inv.estimasiStokKosongWarung} tabung isi</strong>, jumlah tabung isi secara otomatis kembali utuh ke <strong>${inv.totalTabungFisik} Tabung Isi (Kondisi Awal)</strong>.
