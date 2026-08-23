@@ -2406,139 +2406,117 @@ function stopAdminCloudAutoRefresh() {
     }
 }
 
-      function renderLoginScreen() {
+     function renderLoginScreen() {
     return `
-        <div class="
-            login-shell
-            w-full
-            min-h-[100dvh]
-            flex
-            flex-col
-            lg:flex-row
-            bg-slate-900
-            overflow-hidden
-        ">
-
-            <!-- ================================================= -->
-            <!-- BRANDING PANEL -->
-            <!-- ================================================= -->
-            <div class="
-                relative
-                flex-none
+        <div
+            class="
+                login-shell
                 w-full
-                h-[37dvh]
-                min-h-[300px]
-                lg:h-auto
+                min-h-[100svh]
                 lg:min-h-screen
-                lg:w-1/2
-                lg:flex-1
-                px-6
-                pt-7
-                pb-5
-                lg:p-16
                 flex
                 flex-col
-                justify-center
-                lg:justify-between
-                bg-gradient-to-br
-                from-slate-900
-                via-emerald-950
-                to-teal-950
-                text-white
-                overflow-hidden
-            ">
+                lg:flex-row
+                bg-slate-900
+            "
+        >
+
+            <!-- ================================================= -->
+            <!-- BRANDING -->
+            <!-- ================================================= -->
+            <section
+                class="
+                    relative
+                    w-full
+                    lg:w-1/2
+                    lg:min-h-screen
+                    flex
+                    flex-col
+                    justify-center
+                    px-6
+                    pt-8
+                    pb-7
+                    lg:p-16
+                    bg-gradient-to-br
+                    from-slate-900
+                    via-emerald-950
+                    to-teal-950
+                    text-white
+                    overflow-hidden
+                "
+            >
 
                 <!-- Background pattern -->
-                <div class="
-                    absolute
-                    inset-0
-                    opacity-10
-                    bg-[radial-gradient(#10b981_1px,transparent_1px)]
-                    [background-size:16px_16px]
-                    pointer-events-none
-                "></div>
+                <div
+                    class="
+                        absolute
+                        inset-0
+                        pointer-events-none
+                        opacity-10
+                        bg-[radial-gradient(#10b981_1px,transparent_1px)]
+                        [background-size:16px_16px]
+                    "
+                ></div>
 
 
                 <!-- Soft glow -->
-                <div class="
-                    absolute
-                    -top-32
-                    -right-32
-                    w-72
-                    h-72
-                    rounded-full
-                    bg-emerald-500/10
-                    blur-3xl
-                    pointer-events-none
-                "></div>
-
-
-                <!-- Branding content -->
-                <div class="
-                    relative
-                    z-10
-                    max-w-xl
-                ">
-
-                    <!-- Badge desktop -->
-                    <div class="
-                        hidden
-                        lg:inline-flex
-                        items-center
-                        gap-2
-                        px-3.5
-                        py-1.5
-                        mb-6
+                <div
+                    class="
+                        absolute
+                        -top-32
+                        -right-32
+                        w-72
+                        h-72
                         rounded-full
-                        bg-emerald-500/15
-                        border
-                        border-emerald-500/25
-                        text-emerald-400
-                        text-xs
-                        font-bold
-                        uppercase
-                        tracking-wider
-                    ">
+                        bg-emerald-500/10
+                        blur-3xl
+                        pointer-events-none
+                    "
+                ></div>
+
+
+                <div class="relative z-10 w-full max-w-xl">
+
+                    <!-- Badge -->
+                    <div
+                        class="
+                            inline-flex
+                            items-center
+                            gap-2
+                            px-3
+                            py-1.5
+                            mb-4
+                            lg:mb-6
+                            rounded-full
+                            bg-emerald-500/10
+                            border
+                            border-emerald-500/25
+                            text-emerald-400
+                            text-[10px]
+                            lg:text-xs
+                            font-bold
+                            uppercase
+                            tracking-wider
+                        "
+                    >
                         <i class="fa-solid fa-fire-flame-curved"></i>
-                        LPG Distribution Hub v12
-                    </div>
-
-
-                    <!-- Mobile small badge -->
-                    <div class="
-                        lg:hidden
-                        inline-flex
-                        items-center
-                        gap-1.5
-                        px-2.5
-                        py-1
-                        mb-3
-                        rounded-full
-                        bg-emerald-500/15
-                        border
-                        border-emerald-500/25
-                        text-emerald-400
-                        text-[10px]
-                        font-bold
-                        uppercase
-                        tracking-wide
-                    ">
-                        <i class="fa-solid fa-fire-flame-curved text-[9px]"></i>
                         Distribution Hub
                     </div>
 
 
                     <!-- Title -->
-                    <h1 class="
-                        text-[29px]
-                        leading-[1.08]
-                        font-extrabold
-                        tracking-tight
-                        mb-3
-                        lg:text-5xl
-                        lg:leading-tight
-                        lg:mb-4
-                    ">
+                    <h1
+                        class="
+                            text-[30px]
+                            leading-[1.08]
+                            lg:text-5xl
+                            lg:leading-tight
+                            font-extrabold
+                            tracking-tight
+                            mb-3
+                            lg:mb-4
+                        "
+                    >
                         Sistem Terintegrasi
                         <br>
                         Distribusi LPG 3Kg
@@ -2546,135 +2524,158 @@ function stopAdminCloudAutoRefresh() {
 
 
                     <!-- Description -->
-                    <p class="
-                        text-slate-300
-                        text-[13px]
-                        leading-[1.55]
-                        max-w-xl
-                        lg:text-base
-                        lg:leading-relaxed
-                    ">
+                    <p
+                        class="
+                            text-slate-300
+                            text-[13px]
+                            leading-[1.55]
+                            lg:text-base
+                            lg:leading-relaxed
+                            max-w-xl
+                        "
+                    >
                         Platform kontrol distribusi LPG bersubsidi terlengkap.
                         Pantau kuota bulanan, neraca mutasi tabung fisik
                         (isi & kosong), transparansi piutang, dan pencatatan
                         transaksi terverifikasi.
                     </p>
 
+
+                    <!-- Desktop features -->
+                    <div
+                        class="
+                            hidden
+                            lg:flex
+                            flex-wrap
+                            items-center
+                            gap-x-6
+                            gap-y-3
+                            mt-10
+                            text-xs
+                            text-slate-400
+                        "
+                    >
+
+                        <span class="flex items-center">
+                            <i
+                                class="
+                                    fa-solid
+                                    fa-shield-halved
+                                    text-emerald-400
+                                    mr-1.5
+                                "
+                            ></i>
+                            Kuota Subsidi Presisi
+                        </span>
+
+                        <span class="flex items-center">
+                            <i
+                                class="
+                                    fa-solid
+                                    fa-boxes-packing
+                                    text-amber-400
+                                    mr-1.5
+                                "
+                            ></i>
+                            Audit Mutasi Tabung Pasokan
+                        </span>
+
+                        <span class="flex items-center">
+                            <i
+                                class="
+                                    fa-solid
+                                    fa-wallet
+                                    text-indigo-400
+                                    mr-1.5
+                                "
+                            ></i>
+                            Neraca Piutang Warung
+                        </span>
+
+                    </div>
+
                 </div>
 
+            </section>
 
-                <!-- Desktop features -->
-                <div class="
-                    hidden
-                    lg:flex
+
+
+            <!-- ================================================= -->
+            <!-- LOGIN -->
+            <!-- ================================================= -->
+            <section
+                class="
+                    login-panel
                     relative
-                    z-10
-                    items-center
-                    flex-wrap
-                    gap-x-6
-                    gap-y-3
-                    pt-10
-                    text-xs
-                    text-slate-400
-                ">
-
-                    <span class="flex items-center">
-                        <i class="fa-solid fa-shield-halved text-emerald-400 mr-1.5"></i>
-                        Kuota Subsidi Presisi
-                    </span>
-
-                    <span class="flex items-center">
-                        <i class="fa-solid fa-boxes-packing text-amber-400 mr-1.5"></i>
-                        Audit Mutasi Tabung Pasokan
-                    </span>
-
-                    <span class="flex items-center">
-                        <i class="fa-solid fa-wallet text-indigo-400 mr-1.5"></i>
-                        Neraca Piutang Warung
-                    </span>
-
-                </div>
-
-            </div>
-
-
-
-            <!-- ================================================= -->
-            <!-- LOGIN PANEL -->
-            <!-- ================================================= -->
-            <div class="
-                login-panel
-                relative
-                flex-none
-                w-full
-                h-[63dvh]
-                lg:h-auto
-                lg:min-h-screen
-                lg:w-1/2
-                lg:flex-1
-                flex
-                items-start
-                lg:items-center
-                justify-center
-                px-6
-                pt-7
-                pb-6
-                lg:p-16
-                bg-white
-                overflow-hidden
-            ">
-
-
-                <!-- ================================================= -->
-                <!-- LOGIN CONTENT -->
-                <!-- ================================================= -->
-                <div class="
                     w-full
-                    max-w-md
-                    relative
-                ">
+                    lg:w-1/2
+                    lg:min-h-screen
+                    flex
+                    items-center
+                    justify-center
+                    bg-slate-900
+                    lg:bg-white
+                    px-6
+                    py-7
+                    sm:py-8
+                    lg:p-16
+                "
+            >
 
+                <div
+                    class="
+                        w-full
+                        max-w-md
+                    "
+                >
 
-                    <!-- Theme button -->
-                    <div class="
-                        absolute
-                        top-0
-                        right-0
-                        lg:top-0
-                        lg:right-0
-                    ">
+                    <!-- Theme -->
+                    <div
+                        class="
+                            absolute
+                            top-5
+                            right-5
+                            lg:top-6
+                            lg:right-6
+                        "
+                    >
                         ${themeToggleButton()}
                     </div>
 
 
+                    <!-- Header -->
+                    <div
+                        class="
+                            mb-5
+                            lg:mb-8
+                            pr-14
+                        "
+                    >
 
-                    <!-- ================================================= -->
-                    <!-- HEADER -->
-                    <!-- ================================================= -->
-                    <div class="
-                        pr-14
-                        mb-5
-                        lg:mb-8
-                    ">
-
-                        <h2 class="
-                            text-[28px]
-                            leading-tight
-                            font-extrabold
-                            tracking-tight
-                            text-slate-900
-                            lg:text-2xl
-                        ">
+                        <h2
+                            class="
+                                text-[30px]
+                                lg:text-2xl
+                                leading-tight
+                                font-extrabold
+                                tracking-tight
+                                text-slate-100
+                                lg:text-slate-900
+                            "
+                        >
                             Masuk
                         </h2>
 
-                        <p class="
-                            text-[13px]
-                            leading-relaxed
-                            text-slate-500
-                            mt-1.5
-                            lg:text-sm
-                        ">
+                        <p
+                            class="
+                                text-[13px]
+                                lg:text-sm
+                                text-slate-400
+                                lg:text-slate-500
+                                mt-1.5
+                                leading-relaxed
+                            "
+                        >
                             Masukkan username dan password Anda.
                         </p>
 
@@ -2690,17 +2691,19 @@ function stopAdminCloudAutoRefresh() {
                         class="space-y-4 lg:space-y-5"
                     >
 
-
                         <!-- USERNAME -->
                         <div>
 
-                            <label class="
-                                block
-                                text-xs
-                                font-semibold
-                                text-slate-600
-                                mb-1.5
-                            ">
+                            <label
+                                class="
+                                    block
+                                    text-xs
+                                    font-semibold
+                                    text-slate-300
+                                    lg:text-slate-600
+                                    mb-1.5
+                                "
+                            >
                                 Username
                             </label>
 
@@ -2714,18 +2717,23 @@ function stopAdminCloudAutoRefresh() {
                                     w-full
                                     h-[52px]
                                     px-4
-                                    bg-slate-50
+                                    bg-slate-800
+                                    lg:bg-slate-50
                                     border
-                                    border-slate-200
+                                    border-slate-700
+                                    lg:border-slate-200
                                     rounded-2xl
                                     text-sm
                                     font-medium
-                                    text-slate-800
-                                    placeholder:text-slate-400
+                                    text-slate-100
+                                    lg:text-slate-800
+                                    placeholder:text-slate-500
+                                    lg:placeholder:text-slate-400
                                     focus:outline-none
                                     focus:border-emerald-500
                                     focus:ring-2
-                                    focus:ring-emerald-100
+                                    focus:ring-emerald-500/20
+                                    lg:focus:ring-emerald-100
                                     transition
                                 "
                             >
@@ -2737,13 +2745,16 @@ function stopAdminCloudAutoRefresh() {
                         <!-- PASSWORD -->
                         <div>
 
-                            <label class="
-                                block
-                                text-xs
-                                font-semibold
-                                text-slate-600
-                                mb-1.5
-                            ">
+                            <label
+                                class="
+                                    block
+                                    text-xs
+                                    font-semibold
+                                    text-slate-300
+                                    lg:text-slate-600
+                                    mb-1.5
+                                "
+                            >
                                 Password
                             </label>
 
@@ -2761,27 +2772,45 @@ function stopAdminCloudAutoRefresh() {
                                         h-[52px]
                                         px-4
                                         pr-12
-                                        bg-slate-50
+                                        bg-slate-800
+                                        lg:bg-slate-50
                                         border
-                                        border-slate-200
+                                        border-slate-700
+                                        lg:border-slate-200
                                         rounded-2xl
                                         text-sm
                                         font-medium
-                                        text-slate-800
-                                        placeholder:text-slate-400
+                                        text-slate-100
+                                        lg:text-slate-800
+                                        placeholder:text-slate-500
+                                        lg:placeholder:text-slate-400
                                         focus:outline-none
                                         focus:border-emerald-500
                                         focus:ring-2
-                                        focus:ring-emerald-100
+                                        focus:ring-emerald-500/20
+                                        lg:focus:ring-emerald-100
                                         transition
                                     "
                                 >
 
 
-                                <!-- EYE -->
+                                <!-- ================================= -->
+                                <!-- PASSWORD EYE -->
+                                <!-- ================================= -->
                                 <button
                                     type="button"
-                                    onclick="toggleLoginPassword(); this.blur();"
+                                    onclick="
+                                        toggleLoginPassword();
+                                        this.blur();
+                                    "
+                                    onmousedown="this.blur();"
+                                    ontouchstart="this.blur();"
+                                    tabindex="-1"
+                                    aria-label="Tampilkan password"
+                                    style="
+                                        -webkit-tap-highlight-color: transparent;
+                                        touch-action: manipulation;
+                                    "
                                     class="
                                         absolute
                                         right-2
@@ -2789,22 +2818,22 @@ function stopAdminCloudAutoRefresh() {
                                         -translate-y-1/2
                                         w-10
                                         h-10
+                                        p-0
+                                        m-0
                                         flex
                                         items-center
                                         justify-center
                                         text-slate-400
                                         focus:outline-none
                                         focus:ring-0
+                                        active:outline-none
+                                        active:ring-0
                                     "
-                                    aria-label="Tampilkan password"
-                                    tabindex="-1"
                                 >
-
                                     <i
                                         id="loginPasswordEye"
                                         class="fa-solid fa-eye text-[15px]"
                                     ></i>
-
                                 </button>
 
                             </div>
@@ -2841,37 +2870,39 @@ function stopAdminCloudAutoRefresh() {
 
                             <span>Masuk</span>
 
-                            <i class="
-                                fa-solid
-                                fa-arrow-right
-                                text-xs
-                            "></i>
+                            <i
+                                class="
+                                    fa-solid
+                                    fa-arrow-right
+                                    text-xs
+                                "
+                            ></i>
 
                         </button>
-
 
                     </form>
 
 
                     <!-- Mobile footer -->
-                    <div class="
-                        lg:hidden
-                        text-center
-                        mt-4
-                        text-[10px]
-                        text-slate-400
-                    ">
+                    <div
+                        class="
+                            lg:hidden
+                            text-center
+                            mt-4
+                            text-[10px]
+                            text-slate-500
+                        "
+                    >
                         Sistem Manajemen Distribusi LPG 3Kg
                     </div>
 
                 </div>
 
-            </div>
+            </section>
 
         </div>
     `;
 }
-
         function applyTheme() {
             const theme = localStorage.getItem('app_theme') || 'light';
             document.body.classList.toggle('theme-dark', theme === 'dark');
