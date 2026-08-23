@@ -2170,68 +2170,47 @@ function getWarungInventory(customerId) {
             userInp.value = pang?.username || '';
         }
 
-     function toggleLoginPassword() {
+    function toggleLoginPassword(event) {
+
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
 
     const passwordInput =
         document.getElementById('loginPassword');
 
-    const visibleInput =
-        document.getElementById('loginPasswordVisible');
-
     const eyeIcon =
         document.getElementById('loginPasswordEye');
 
-    if (!passwordInput || !visibleInput) return;
+    if (!passwordInput) return;
 
 
-    // Simpan posisi halaman agar tidak bergeser
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
+    // Cek kondisi password saat ini
+    const isHidden =
+        passwordInput.style.webkitTextSecurity === 'disc';
 
 
-    // PASSWORD → TERLIHAT
-    if (passwordInput.style.display !== 'none') {
+    if (isHidden) {
 
-        // Salin isi password
-        visibleInput.value = passwordInput.value;
+        // Tampilkan password
+        passwordInput.style.webkitTextSecurity = 'none';
 
-        // Sembunyikan input password
-        passwordInput.style.display = 'none';
+    } else {
 
-        // Tampilkan input teks
-        visibleInput.style.display = 'block';
+        // Sembunyikan password
+        passwordInput.style.webkitTextSecurity = 'disc';
 
     }
 
-    // TERLIHAT → PASSWORD
-    else {
 
-        // Kembalikan isi ke input password
-        passwordInput.value = visibleInput.value;
-
-        // Sembunyikan input teks
-        visibleInput.style.display = 'none';
-
-        // Tampilkan input password
-        passwordInput.style.display = 'block';
-    }
-
-
-    // Ikon SELALU mata biasa
+    // Mata tetap diam dan selalu ikon mata biasa
     if (eyeIcon) {
         eyeIcon.className =
             'fa-solid fa-eye text-[15px]';
     }
 
-
-    // Kembalikan posisi halaman
-    window.scrollTo(scrollX, scrollY);
-
-    requestAnimationFrame(() => {
-        window.scrollTo(scrollX, scrollY);
-    });
 }
-
         function handleLogout() {
             const db = getDB();
             db.currentUser = null;
@@ -2665,11 +2644,11 @@ function stopAdminCloudAutoRefresh() {
 
         <!-- PASSWORD TERSEMBUNYI -->
         <input
-            type="password"
-            id="loginPassword"
+            type="text"
             placeholder="Masukkan password"
             autocomplete="current-password"
             required
+            style="-webkit-text-security: disc;"
             class="
                 w-full
                 h-[52px]
