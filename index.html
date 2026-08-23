@@ -3221,6 +3221,13 @@ function stopAdminCloudAutoRefresh() {
                 <i class="fa-solid fa-receipt mr-1"></i>
                 Invoice
             </button>
+            <button
+    type="button"
+    onclick="sendTransactionInvoiceWhatsApp('${t.id}')"
+    class="px-3 py-2 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 font-bold rounded-lg text-[11px] transition">
+    <i class="fa-brands fa-whatsapp mr-1"></i>
+    WhatsApp
+</button>
     
 
         ${!isLunas
@@ -5682,6 +5689,150 @@ toggleTransactionBuyerMode();
             'error'
         );
     }
+}
+
+        // ============================================================
+        // KIRIM INVOICE KE WHATSAPP
+        // ============================================================
+
+function sendTransactionInvoiceWhatsApp(trxId) {
+    const db = getDB();
+
+    const trx = (db.transactions || []).find(
+        t => t.id === trxId
+    );
+
+    if (!trx || trx.deletedAt) {
+        showAlert(
+            'Invoice Tidak Tersedia',
+            'Transaksi tidak ditemukan atau sudah dibatalkan.',
+            'error'
+        );
+        return;
+    }
+
+    const customer =
+        (db.customers || []).find(
+            c => c.id === trx.customerId
+        );
+
+    const pangkalan =
+        (db.pangalans || []).find(
+            p => String(p.id) === String(trx.pangkalanId)
+        );
+
+    const pangkalanName =
+        pangkalan?.name ||
+        'Pangkalan';
+
+    const customerName =
+        customer?.name ||
+        trx.customerName ||
+        'Pelanggan';
+
+    const qtyIsi =
+        Number(trx.qty3kg || 0);
+
+    const qtyKosong =
+        Number(trx.qtyKosongDiambil || 0);
+
+    const hargaJual =
+        Number(trx.hargaJual || 0);
+
+    const totalHarga =
+        Number(trx.totalHarga || 0);
+
+    const bayar =
+        Number(trx.bayar || 0);
+
+    const sisa =
+        Math.max(
+            0,
+            totalHarga - bayar
+        );
+
+    const status =
+        sisa <= 0
+            ? 'LUNAS'
+            : 'KURANG';
+
+    const invoiceNumber =
+        `INV-${String(trx.date || '')
+            .replace(/-/g, '')}-${String(trx.id || '')
+            .replace('trx_', '')}`;
+
+    const formatRupiah = value =>
+        `Rp${Number(value || 0).toLocaleString('id-ID')}`;
+
+    const formatTanggal =
+        trx.date
+            ? new Date(
+                `${trx.date}T00:00:00`
+              ).toLocaleDateString(
+                'id-ID',
+                {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                }
+              )
+            : '-';
+
+    const message = `
+*INVOICE PENJUALAN*
+${pangkalanName}
+
+No: ${invoiceNumber}
+Tanggal: ${formatTanggal}
+Pelanggan: ${customerName}
+
+*DETAIL TRANSAKSI*
+Tabung Isi: ${qtyIsi} Unit
+Harga / Unit: ${formatRupiah(hargaJual)}
+Subtotal: ${formatRupiah(totalHarga)}
+
+Kosong Diambil: ${qtyKosong} Unit
+
+*PEMBAYARAN*
+Total: ${formatRupiah(totalHarga)}
+Dibayar: ${formatRupiah(bayar)}
+Sisa Tagihan: ${formatRupiah(sisa)}
+
+*STATUS: ${status}*
+
+Terima kasih
+${pangkalanName}
+`.trim();
+
+    const phone =
+        customer?.phone ||
+        customer?.noHp ||
+        customer?.whatsapp ||
+        customer?.phoneNumber ||
+        trx.customerPhone ||
+        '';
+
+    let whatsappUrl;
+
+    if (phone) {
+        let nomor = String(phone)
+            .replace(/\D/g, '');
+
+        if (nomor.startsWith('0')) {
+            nomor = '62' + nomor.substring(1);
+        }
+
+        whatsappUrl =
+            `https://wa.me/${nomor}?text=${encodeURIComponent(message)}`;
+    } else {
+        whatsappUrl =
+            `https://wa.me/?text=${encodeURIComponent(message)}`;
+    }
+
+    window.open(
+        whatsappUrl,
+        '_blank'
+    );
 }
 
         function openEditTransactionModal(trxId) {
