@@ -2171,18 +2171,14 @@ function getWarungInventory(customerId) {
         }
 
     function toggleLoginPassword() {
-
     const passwordInput =
         document.getElementById('loginPassword');
 
     if (!passwordInput) return;
 
     if (passwordInput.type === 'password') {
-
         passwordInput.type = 'text';
-
     } else {
-
         passwordInput.type = 'password';
     }
 }
@@ -2263,302 +2259,194 @@ function stopAdminCloudAutoRefresh() {
     }
 }
 
-     function renderLoginScreen() {
+    function renderLoginScreen() {
     return `
-        <div
-            class="
-                login-shell
-                w-full
-                min-h-[100svh]
-                lg:min-h-screen
-                flex
-                flex-col
-                lg:flex-row
-                bg-slate-900
-            "
-        >
+        <div class="login-shell min-h-screen w-full flex flex-col lg:flex-row bg-slate-900">
 
-            <!-- ================================================= -->
-            <!-- BRANDING -->
-            <!-- ================================================= -->
-            <section
-                class="
-                    relative
-                    w-full
-                    lg:w-1/2
-                    lg:min-h-screen
-                    flex
-                    flex-col
-                    justify-center
-                    px-6
-                    pt-8
-                    pb-7
-                    lg:p-16
-                    bg-gradient-to-br
-                    from-slate-900
-                    via-emerald-950
-                    to-teal-950
-                    text-white
-                    overflow-hidden
-                "
-            >
+            <!-- =========================
+                 LEFT / INFORMATION PANEL
+                 ========================= -->
+            <div class="
+                w-full lg:w-1/2
+                flex-none
+                bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-950
+                text-white
+                relative overflow-hidden
+                px-6 py-10
+                sm:px-8 sm:py-12
+                lg:px-16 lg:py-16
+                flex flex-col
+                justify-center
+            ">
 
                 <!-- Background pattern -->
-                <div
-                    class="
-                        absolute
-                        inset-0
-                        pointer-events-none
-                        opacity-10
-                        bg-[radial-gradient(#10b981_1px,transparent_1px)]
-                        [background-size:16px_16px]
-                    "
-                ></div>
+                <div class="
+                    absolute inset-0
+                    opacity-10
+                    bg-[radial-gradient(#10b981_1px,transparent_1px)]
+                    [background-size:16px_16px]
+                    pointer-events-none
+                "></div>
 
-
-                <!-- Soft glow -->
-                <div
-                    class="
-                        absolute
-                        -top-32
-                        -right-32
-                        w-72
-                        h-72
-                        rounded-full
-                        bg-emerald-500/10
-                        blur-3xl
-                        pointer-events-none
-                    "
-                ></div>
-
-
-                <div class="relative z-10 w-full max-w-xl">
+                <div class="relative z-10 w-full max-w-2xl mx-auto lg:mx-0">
 
                     <!-- Badge -->
-                    <div
-                        class="
-                            inline-flex
-                            items-center
-                            gap-2
-                            px-3
-                            py-1.5
-                            mb-4
-                            lg:mb-6
-                            rounded-full
-                            bg-emerald-500/10
-                            border
-                            border-emerald-500/25
-                            text-emerald-400
-                            text-[10px]
-                            lg:text-xs
-                            font-bold
-                            uppercase
-                            tracking-wider
-                        "
-                    >
+                    <span class="
+                        inline-flex items-center gap-2
+                        px-3.5 py-2
+                        mb-6
+                        rounded-full
+                        bg-emerald-500/10
+                        border border-emerald-500/30
+                        text-emerald-400
+                        text-xs font-bold
+                        uppercase tracking-wider
+                    ">
                         <i class="fa-solid fa-fire-flame-curved"></i>
                         Distribution Hub
-                    </div>
-
+                    </span>
 
                     <!-- Title -->
-                    <h1
-                        class="
-                            text-[30px]
-                            leading-[1.08]
-                            lg:text-5xl
-                            lg:leading-tight
-                            font-extrabold
-                            tracking-tight
-                            mb-3
-                            lg:mb-4
-                        "
-                    >
+                    <h1 class="
+                        text-4xl
+                        sm:text-5xl
+                        lg:text-5xl
+                        xl:text-6xl
+                        font-extrabold
+                        tracking-tight
+                        leading-[1.05]
+                        mb-6
+                    ">
                         Sistem Terintegrasi
                         <br>
                         Distribusi LPG 3Kg
                     </h1>
 
-
                     <!-- Description -->
-                    <p
-                        class="
-                            text-slate-300
-                            text-[13px]
-                            leading-[1.55]
-                            lg:text-base
-                            lg:leading-relaxed
-                            max-w-xl
-                        "
-                    >
-                        Platform kontrol distribusi LPG bersubsidi terlengkap.
-                        Pantau kuota bulanan, neraca mutasi tabung fisik
-                        (isi & kosong), transparansi piutang, dan pencatatan
-                        transaksi terverifikasi.
+                    <p class="
+                        text-base
+                        sm:text-lg
+                        lg:text-base
+                        xl:text-lg
+                        text-slate-300
+                        leading-relaxed
+                        max-w-xl
+                    ">
+                        Platform kontrol distribusi LPG bersubsidi
+                        terlengkap. Pantau kuota bulanan, neraca mutasi
+                        tabung fisik (isi & kosong), transparansi piutang,
+                        dan pencatatan transaksi terverifikasi.
                     </p>
 
+                    <!-- Features -->
+                    <div class="
+                        mt-8
+                        lg:mt-12
+                        flex flex-col
+                        gap-5
+                        text-sm
+                        text-slate-300
+                    ">
 
-                    <!-- Desktop features -->
-                    <div
-                        class="
-                            hidden
-                            lg:flex
-                            flex-wrap
-                            items-center
-                            gap-x-6
-                            gap-y-3
-                            mt-10
-                            text-xs
-                            text-slate-400
-                        "
-                    >
+                        <div class="flex items-center gap-3">
+                            <i class="fa-solid fa-shield-halved text-emerald-400 text-lg w-5 text-center"></i>
+                            <span>Kuota Subsidi Presisi</span>
+                        </div>
 
-                        <span class="flex items-center">
-                            <i
-                                class="
-                                    fa-solid
-                                    fa-shield-halved
-                                    text-emerald-400
-                                    mr-1.5
-                                "
-                            ></i>
-                            Kuota Subsidi Presisi
-                        </span>
+                        <div class="flex items-center gap-3">
+                            <i class="fa-solid fa-boxes-packing text-amber-400 text-lg w-5 text-center"></i>
+                            <span>Audit Mutasi Tabung Pasokan</span>
+                        </div>
 
-                        <span class="flex items-center">
-                            <i
-                                class="
-                                    fa-solid
-                                    fa-boxes-packing
-                                    text-amber-400
-                                    mr-1.5
-                                "
-                            ></i>
-                            Audit Mutasi Tabung Pasokan
-                        </span>
-
-                        <span class="flex items-center">
-                            <i
-                                class="
-                                    fa-solid
-                                    fa-wallet
-                                    text-indigo-400
-                                    mr-1.5
-                                "
-                            ></i>
-                            Neraca Piutang Warung
-                        </span>
+                        <div class="flex items-center gap-3">
+                            <i class="fa-solid fa-wallet text-indigo-400 text-lg w-5 text-center"></i>
+                            <span>Neraca Piutang Warung</span>
+                        </div>
 
                     </div>
 
                 </div>
-
-            </section>
-
+            </div>
 
 
-            <!-- ================================================= -->
-            <!-- LOGIN -->
-            <!-- ================================================= -->
-            <section
-                class="
-                    login-panel
-                    relative
+            <!-- =========================
+                 RIGHT / LOGIN PANEL
+                 ========================= -->
+            <div class="
+                login-panel
+                w-full lg:w-1/2
+                flex-1
+                bg-slate-900
+                relative
+                flex items-center justify-center
+                px-6 py-10
+                sm:px-8 sm:py-12
+                lg:px-16 lg:py-16
+            ">
+
+                <!-- Theme button -->
+                <div class="
+                    absolute
+                    top-5 right-5
+                    sm:top-7 sm:right-7
+                    lg:top-8 lg:right-8
+                    z-20
+                ">
+                    ${themeToggleButton()}
+                </div>
+
+
+                <!-- Login content -->
+                <div class="
                     w-full
-                    lg:w-1/2
-                    lg:min-h-screen
-                    flex
-                    items-center
-                    justify-center
-                    bg-slate-900
-                    lg:bg-white
-                    px-6
-                    py-7
-                    sm:py-8
-                    lg:p-16
-                "
-            >
-
-                <div
-                    class="
-                        w-full
-                        max-w-md
-                    "
-                >
-
-                    <!-- Theme -->
-                    <div
-                        class="
-                            absolute
-                            top-5
-                            right-5
-                            lg:top-6
-                            lg:right-6
-                        "
-                    >
-                        ${themeToggleButton()}
-                    </div>
-
+                    max-w-md
+                    mx-auto
+                ">
 
                     <!-- Header -->
-                    <div
-                        class="
-                            mb-5
-                            lg:mb-8
-                            pr-14
-                        "
-                    >
+                    <div class="mb-8 sm:mb-10 pr-14">
 
-                        <h2
-                            class="
-                                text-[30px]
-                                lg:text-2xl
-                                leading-tight
-                                font-extrabold
-                                tracking-tight
-                                text-slate-100
-                                lg:text-slate-900
-                            "
-                        >
+                        <h2 class="
+                            text-4xl
+                            sm:text-5xl
+                            font-extrabold
+                            tracking-tight
+                            text-white
+                            leading-none
+                        ">
                             Masuk
                         </h2>
 
-                        <p
-                            class="
-                                text-[13px]
-                                lg:text-sm
-                                text-slate-400
-                                lg:text-slate-500
-                                mt-1.5
-                                leading-relaxed
-                            "
-                        >
+                        <p class="
+                            mt-4
+                            text-base
+                            sm:text-lg
+                            text-slate-400
+                            leading-relaxed
+                        ">
                             Masukkan username dan password Anda.
                         </p>
 
                     </div>
 
 
-
-                    <!-- ================================================= -->
-                    <!-- FORM -->
-                    <!-- ================================================= -->
+                    <!-- LOGIN FORM -->
                     <form
                         onsubmit="handleLogin(event)"
-                        class="space-y-4 lg:space-y-5"
+                        class="w-full"
                     >
 
                         <!-- USERNAME -->
-                        <div>
+                        <div class="w-full mb-6">
 
                             <label
+                                for="loginUsername"
                                 class="
                                     block
-                                    text-xs
+                                    text-sm
                                     font-semibold
                                     text-slate-300
-                                    lg:text-slate-600
-                                    mb-1.5
+                                    mb-2
                                 "
                             >
                                 Username
@@ -2571,149 +2459,156 @@ function stopAdminCloudAutoRefresh() {
                                 autocomplete="username"
                                 required
                                 class="
+                                    block
                                     w-full
-                                    h-[52px]
+                                    h-14
                                     px-4
                                     bg-slate-800
-                                    lg:bg-slate-50
-                                    border
-                                    border-slate-700
-                                    lg:border-slate-200
+                                    border border-slate-700
                                     rounded-2xl
-                                    text-sm
+                                    text-base
                                     font-medium
-                                    text-slate-100
-                                    lg:text-slate-800
+                                    text-white
                                     placeholder:text-slate-500
-                                    lg:placeholder:text-slate-400
                                     focus:outline-none
                                     focus:border-emerald-500
                                     focus:ring-2
                                     focus:ring-emerald-500/20
-                                    lg:focus:ring-emerald-100
-                                    transition
                                 "
                             >
 
                         </div>
 
 
-
                         <!-- PASSWORD -->
-<div>
+                        <div class="w-full mb-7">
 
-    <label
-        class="
-            block
-            text-xs
-            font-semibold
-            text-slate-300
-            lg:text-slate-600
-            mb-1.5
-        "
-    >
-        Password
-    </label>
+                            <label
+                                for="loginPassword"
+                                class="
+                                    block
+                                    text-sm
+                                    font-semibold
+                                    text-slate-300
+                                    mb-2
+                                "
+                            >
+                                Password
+                            </label>
 
-    <div>
-    <label
-        class="block text-xs font-semibold text-slate-300 lg:text-slate-600 mb-1.5">
-        Password
-    </label>
+                            <div class="relative w-full">
 
-    <div class="relative">
+                                <input
+                                    type="password"
+                                    id="loginPassword"
+                                    placeholder="Masukkan password"
+                                    autocomplete="current-password"
+                                    required
+                                    class="
+                                        block
+                                        w-full
+                                        h-14
+                                        px-4
+                                        pr-14
+                                        bg-slate-800
+                                        border border-slate-700
+                                        rounded-2xl
+                                        text-base
+                                        font-medium
+                                        text-white
+                                        placeholder:text-slate-500
+                                        focus:outline-none
+                                        focus:border-emerald-500
+                                        focus:ring-2
+                                        focus:ring-emerald-500/20
+                                    "
+                                >
 
-        <input
-            type="password"
-            id="loginPassword"
-            placeholder="Masukkan password"
-            autocomplete="current-password"
-            required
-            class="w-full h-[52px] px-4 pr-14 bg-slate-800 lg:bg-slate-50 border border-slate-700 lg:border-slate-200 rounded-2xl text-sm font-medium text-slate-100 lg:text-slate-800 placeholder:text-slate-500 lg:placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 lg:focus:ring-emerald-100"
-        >
+                                <!-- EYE BUTTON
+                                     Tidak ada hover,
+                                     tidak ada animasi,
+                                     tidak menggeser halaman -->
+                                <button
+                                    type="button"
+                                    tabindex="-1"
+                                    onclick="toggleLoginPassword()"
+                                    aria-label="Lihat password"
+                                    class="
+                                        absolute
+                                        right-3
+                                        top-1/2
+                                        -translate-y-1/2
+                                        w-10
+                                        h-10
+                                        flex
+                                        items-center
+                                        justify-center
+                                        p-0
+                                        m-0
+                                        border-0
+                                        outline-none
+                                        bg-transparent
+                                        text-slate-400
+                                        appearance-none
+                                    "
+                                    style="
+                                        -webkit-tap-highlight-color: transparent;
+                                        touch-action: manipulation;
+                                    "
+                                >
+                                    <i
+                                        id="loginPasswordEye"
+                                        class="fa-solid fa-eye text-[17px]"
+                                    ></i>
+                                </button>
 
-        <button
-            type="button"
-            onmousedown="event.preventDefault()"
-            onclick="toggleLoginPassword()"
-            aria-label="Lihat password"
-            class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-slate-400 p-0 m-0 border-0 bg-transparent outline-none focus:outline-none focus:ring-0 active:outline-none active:ring-0"
-            style="-webkit-tap-highlight-color: transparent;"
-        >
-            <i
-                id="loginPasswordEye"
-                class="fa-solid fa-eye text-[15px]">
-            </i>
-        </button>
+                            </div>
 
-    </div>
-</div>
-
-     
-
-    </div>
-
-</div>
+                        </div>
 
 
-
-                        <!-- ================================================= -->
                         <!-- LOGIN BUTTON -->
-                        <!-- ================================================= -->
                         <button
                             type="submit"
                             class="
+                                block
                                 w-full
-                                h-[54px]
-                                mt-1
+                                h-14
                                 bg-emerald-600
-                                hover:bg-emerald-700
-                                active:bg-emerald-800
                                 text-white
                                 font-bold
+                                text-base
                                 rounded-2xl
-                                text-sm
                                 shadow-lg
                                 shadow-emerald-600/20
-                                transition
+                                transition-colors
+                                duration-150
+                                hover:bg-emerald-700
                                 flex
                                 items-center
                                 justify-center
                                 gap-2
                             "
                         >
-
                             <span>Masuk</span>
-
-                            <i
-                                class="
-                                    fa-solid
-                                    fa-arrow-right
-                                    text-xs
-                                "
-                            ></i>
-
+                            <i class="fa-solid fa-arrow-right text-sm"></i>
                         </button>
 
                     </form>
 
 
-                    <!-- Mobile footer -->
-                    <div
-                        class="
-                            lg:hidden
-                            text-center
-                            mt-4
-                            text-[10px]
-                            text-slate-500
-                        "
-                    >
+                    <!-- Footer -->
+                    <div class="
+                        mt-8
+                        text-center
+                        text-sm
+                        text-slate-500
+                    ">
                         Sistem Manajemen Distribusi LPG 3Kg
                     </div>
 
                 </div>
-
-            </section>
+            </div>
 
         </div>
     `;
