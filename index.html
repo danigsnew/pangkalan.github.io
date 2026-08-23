@@ -1355,6 +1355,188 @@
                 box-shadow: 0 14px 32px rgba(0,0,0,.24) !important;
             }
         }
+        /* =========================================================
+   LOGIN DESKTOP — VISUAL POLISH ONLY
+   MOBILE TIDAK DISENTUH
+   TIDAK MENYENTUH LOGIN / DATABASE / JAVASCRIPT
+   ========================================================= */
+
+@media (min-width: 1024px) {
+
+    /* =========================
+       LOGIN SHELL
+       ========================= */
+
+    .login-shell {
+        min-height: 100vh !important;
+        height: 100vh !important;
+        overflow: hidden !important;
+    }
+
+
+    /* =========================
+       PANEL LOGIN KANAN
+       ========================= */
+
+    .login-shell .login-panel {
+        background: #1f252d !important;
+        color: #f1f5f9 !important;
+    }
+
+
+    /* =========================
+       JUDUL LOGIN
+       ========================= */
+
+    .login-shell .login-panel h2 {
+        color: #f8fafc !important;
+        font-size: 34px !important;
+        line-height: 1.1 !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.02em !important;
+    }
+
+
+    /* =========================
+       DESKRIPSI
+       ========================= */
+
+    .login-shell .login-panel h2 + p {
+        color: #94a3b8 !important;
+        font-size: 15px !important;
+        line-height: 1.6 !important;
+    }
+
+
+    /* =========================
+       LABEL
+       ========================= */
+
+    .login-shell .login-panel form label {
+        color: #cbd5e1 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+    }
+
+
+    /* =========================
+       INPUT
+       ========================= */
+
+    .login-shell .login-panel form input {
+        background: #171c23 !important;
+        color: #f1f5f9 !important;
+
+        border-color: #374151 !important;
+
+        height: 58px !important;
+        border-radius: 16px !important;
+
+        font-size: 15px !important;
+        font-weight: 500 !important;
+
+        box-shadow: none !important;
+    }
+
+
+    /* PLACEHOLDER */
+
+    .login-shell .login-panel form input::placeholder {
+        color: #64748b !important;
+        opacity: 1 !important;
+    }
+
+
+    /* FOCUS INPUT */
+
+    .login-shell .login-panel form input:focus {
+        border-color: #10b981 !important;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12) !important;
+        outline: none !important;
+    }
+
+
+    /* =========================
+       TOMBOL MATA
+       ========================= */
+
+    .login-shell .login-panel form .relative > button {
+        width: 42px !important;
+        height: 42px !important;
+
+        right: 8px !important;
+
+        color: #94a3b8 !important;
+
+        background: transparent !important;
+        border: 0 !important;
+
+        outline: none !important;
+        box-shadow: none !important;
+
+        transition: none !important;
+        transform: translateY(-50%) !important;
+    }
+
+    /* TIDAK ADA EFEK HOVER */
+
+    .login-shell .login-panel form .relative > button:hover,
+    .login-shell .login-panel form .relative > button:focus,
+    .login-shell .login-panel form .relative > button:active {
+        color: #94a3b8 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        outline: none !important;
+        transform: translateY(-50%) !important;
+    }
+
+
+    /* =========================
+       TOMBOL MASUK
+       ========================= */
+
+    .login-shell .login-panel form > button[type="submit"] {
+        height: 58px !important;
+
+        background: #059669 !important;
+        color: #ffffff !important;
+
+        border-radius: 16px !important;
+
+        font-size: 15px !important;
+        font-weight: 700 !important;
+
+        box-shadow: 0 12px 28px rgba(5, 150, 105, 0.18) !important;
+    }
+
+
+    /* =========================
+       TOMBOL MASUK HOVER
+       ========================= */
+
+    .login-shell .login-panel form > button[type="submit"]:hover {
+        background: #059669 !important;
+    }
+
+
+    /* =========================
+       THEME TOGGLE
+       ========================= */
+
+    .login-shell .login-panel button {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+
+    /* =========================
+       UKURAN FORM DESKTOP
+       ========================= */
+
+    .login-shell .login-panel > div {
+        width: 100% !important;
+        max-width: 480px !important;
+    }
+}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-full flex flex-col antialiased selection:bg-emerald-500 selection:text-white custom-scrollbar">
