@@ -1726,8 +1726,7 @@ async function processCloudSave() {
             const trxs = db.transactions.filter(t => t.customerId === customerId && t.date.startsWith(currentMonth));
             return trxs.reduce((sum, t) => sum + Number(t.qty3kg || 0), 0);
         }
-
-       function getWarungInventory(customerId) {
+function getWarungInventory(customerId) {
     const db = getDB();
 
     const trxs = (db.transactions || []).filter(
@@ -1738,20 +1737,36 @@ async function processCloudSave() {
         s => String(s.customerId) === String(customerId)
     );
 
+    // ========================================================
+    // TOTAL TABUNG ISI YANG PERNAH DIKIRIM KE WARUNG
+    // ========================================================
+
     const totalIsiDiterima = trxs.reduce(
         (s, t) => s + Number(t.qty3kg || 0),
         0
     );
+
+    // ========================================================
+    // TOTAL TABUNG KOSONG YANG DITARIK PANGKALAN
+    // ========================================================
 
     const totalKosongDitarikPangkalan = trxs.reduce(
         (s, t) => s + Number(t.qtyKosongDiambil || 0),
         0
     );
 
+    // ========================================================
+    // TOTAL PENJUALAN ECERAN WARUNG
+    // ========================================================
+
     const totalPenjualanEceran = sales.reduce(
         (s, x) => s + Number(x.qty || 0),
         0
     );
+
+    // ========================================================
+    // TAGIHAN
+    // ========================================================
 
     const totalTagihan = trxs.reduce(
         (s, t) => s + Number(t.totalHarga || 0),
@@ -1768,50 +1783,92 @@ async function processCloudSave() {
         totalTagihan - totalSudahDibayar
     );
 
+    // ========================================================
+    // HITUNG STOK ISI WARUNG
+    //
+    // Rumus:
+    // Isi diterima
+    // - kosong yang sudah ditarik
+    // - penjualan eceran
+    //
+    // CATATAN:
+    // transaksi "tarik_kosong" hanya mengambil tabung kosong
+    // sehingga TIDAK mengurangi stok isi.
+    // ========================================================
 
-    // ========================================================
-    // HITUNG STOK ISI
-    // ========================================================
+    const totalKosongDitarikDariTransaksi = trxs.reduce(
+        (s, t) => {
+
+            if (
+                String(t.jenisTransaksi || '') ===
+                'tarik_kosong'
+            ) {
+                return s;
+            }
+
+            return s + Math.min(
+                Number(t.qtyKosongDiambil || 0),
+                Number(t.qty3kg || 0)
+            );
+        },
+        0
+    );
 
     const stokIsi = Math.max(
         0,
-        totalIsiDiterima - totalPenjualanEceran
+        totalIsiDiterima -
+        totalKosongDitarikDariTransaksi -
+        totalPenjualanEceran
     );
 
-
     // ========================================================
-    // HITUNG STOK KOSONG BERDASARKAN PERGERAKAN
+    // HITUNG STOK KOSONG WARUNG
+    // Berdasarkan pergerakan tabung
     // ========================================================
 
     const movements = [];
 
-    // Transaksi pengiriman/pengambilan oleh pangkalan
+    // Pengambilan kosong oleh pangkalan
     trxs.forEach(t => {
+
+        // Mode tarik_kosong memang mengurangi
+        // stok kosong warung.
         movements.push({
             type: 'ambilKosong',
             qty: Number(t.qtyKosongDiambil || 0),
-            date: t.date || t.createdAt || t.timestamp || ''
+            date:
+                t.date ||
+                t.createdAt ||
+                t.timestamp ||
+                ''
         });
     });
 
-    // Penjualan eceran warung
+    // Penjualan eceran mengubah tabung isi menjadi kosong
     sales.forEach(s => {
+
         movements.push({
             type: 'penjualan',
             qty: Number(s.qty || 0),
-            date: s.date || s.createdAt || s.timestamp || ''
+            date:
+                s.date ||
+                s.createdAt ||
+                s.timestamp ||
+                ''
         });
     });
 
-
     // Urutkan berdasarkan waktu
     movements.sort((a, b) => {
-        const dateA = new Date(a.date || 0).getTime();
-        const dateB = new Date(b.date || 0).getTime();
+
+        const dateA =
+            new Date(a.date || 0).getTime();
+
+        const dateB =
+            new Date(b.date || 0).getTime();
 
         return dateA - dateB;
     });
-
 
     let stokKosong = 0;
 
@@ -1827,25 +1884,37 @@ async function processCloudSave() {
         }
 
         // Stok fisik tidak boleh negatif
-        stokKosong = Math.max(0, stokKosong);
+        stokKosong = Math.max(
+            0,
+            stokKosong
+        );
     });
 
+    // ========================================================
+    // TOTAL TABUNG FISIK DI WARUNG
+    // ========================================================
 
     const totalTabungFisik =
         stokIsi + stokKosong;
 
-
     return {
         totalIsiDiterima,
+
         totalKosongDitarikPangkalan,
+
         totalPenjualanEceran,
+
         totalTagihan,
+
         totalSudahDibayar,
+
         sisaHutang,
 
-        estimasiStokIsiWarung: stokIsi,
+        estimasiStokIsiWarung:
+            stokIsi,
 
-        estimasiStokKosongWarung: stokKosong,
+        estimasiStokKosongWarung:
+            stokKosong,
 
         totalTabungFisik
     };
