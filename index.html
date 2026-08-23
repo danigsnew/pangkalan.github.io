@@ -2406,45 +2406,130 @@ function stopAdminCloudAutoRefresh() {
     }
 }
 
-        function renderLoginScreen() {
+       function renderLoginScreen() {
     return `
-        <div class="login-shell min-h-full flex-1 flex flex-col lg:flex-row bg-slate-900">
+        <div class="login-shell min-h-[100dvh] w-full flex flex-col lg:flex-row bg-slate-900 overflow-hidden">
 
-            <!-- AREA INFORMASI -->
-            <div class="lg:w-1/2 p-6 lg:p-16 flex flex-col justify-between bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-950 text-white relative overflow-hidden">
+            <!-- ===================================================== -->
+            <!-- INFORMASI / BRANDING -->
+            <!-- ===================================================== -->
+            <div class="
+                lg:w-1/2
+                flex-none lg:flex-1
+                px-6 pt-7 pb-6
+                lg:p-16
+                flex flex-col
+                justify-center lg:justify-between
+                bg-gradient-to-br from-slate-900 via-emerald-950 to-teal-950
+                text-white
+                relative overflow-hidden
+            ">
 
-                <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                <!-- Background pattern -->
+                <div class="
+                    absolute inset-0
+                    opacity-10
+                    bg-[radial-gradient(#10b981_1px,transparent_1px)]
+                    [background-size:16px_16px]
+                "></div>
 
-                <div class="relative z-10">
 
-                    <span class="px-3.5 py-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-bold uppercase tracking-wider inline-flex items-center gap-2 mb-6">
+                <!-- Decorative glow -->
+                <div class="
+                    absolute
+                    -top-32
+                    -right-32
+                    w-72
+                    h-72
+                    bg-emerald-500/10
+                    rounded-full
+                    blur-3xl
+                "></div>
+
+
+                <div class="relative z-10 max-w-xl">
+
+                    <!-- Badge hanya desktop -->
+                    <span class="
+                        hidden lg:inline-flex
+                        px-3.5 py-1.5
+                        bg-emerald-500/20
+                        text-emerald-400
+                        border border-emerald-500/30
+                        rounded-full
+                        text-xs
+                        font-bold
+                        uppercase
+                        tracking-wider
+                        items-center
+                        gap-2
+                        mb-6
+                    ">
                         <i class="fa-solid fa-fire-flame-curved"></i>
                         LPG Distribution Hub v12
                     </span>
 
-                    <h1 class="text-3xl lg:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
-                        Sistem Terintegrasi Distribusi LPG 3Kg
+
+                    <!-- Judul -->
+                    <h1 class="
+                        text-[28px]
+                        leading-[1.12]
+                        lg:text-5xl
+                        lg:leading-tight
+                        font-extrabold
+                        tracking-tight
+                        mb-3
+                        lg:mb-4
+                    ">
+                        Sistem Terintegrasi
+                        <br class="hidden lg:block">
+                        Distribusi LPG 3Kg
                     </h1>
 
-                    <p class="text-slate-300 text-sm lg:text-base max-w-lg leading-relaxed">
-                        Platform kontrol distribusi LPG bersubsidi terlengkap. Pantau kuota bulanan, neraca mutasi tabung fisik (isi & kosong), transparansi piutang, dan pencatatan transaksi terverifikasi.
+
+                    <!-- Deskripsi -->
+                    <p class="
+                        text-slate-300
+                        text-sm
+                        lg:text-base
+                        max-w-lg
+                        leading-relaxed
+                    ">
+                        Platform kontrol distribusi LPG bersubsidi terlengkap.
+                        Pantau kuota bulanan, neraca mutasi tabung fisik
+                        (isi & kosong), transparansi piutang, dan pencatatan
+                        transaksi terverifikasi.
                     </p>
 
                 </div>
 
-                <div class="relative z-10 pt-5 lg:pt-10 text-xs text-slate-400 flex flex-wrap items-center gap-6">
 
-                    <span>
+                <!-- ================================================= -->
+                <!-- FITUR DESKTOP -->
+                <!-- ================================================= -->
+                <div class="
+                    hidden lg:flex
+                    relative z-10
+                    pt-10
+                    text-xs
+                    text-slate-400
+                    flex-wrap
+                    items-center
+                    gap-x-6
+                    gap-y-3
+                ">
+
+                    <span class="flex items-center">
                         <i class="fa-solid fa-shield-halved text-emerald-400 mr-1.5"></i>
                         Kuota Subsidi Presisi
                     </span>
 
-                    <span>
+                    <span class="flex items-center">
                         <i class="fa-solid fa-boxes-packing text-amber-400 mr-1.5"></i>
                         Audit Mutasi Tabung Pasokan
                     </span>
 
-                    <span>
+                    <span class="flex items-center">
                         <i class="fa-solid fa-wallet text-indigo-400 mr-1.5"></i>
                         Neraca Piutang Warung
                     </span>
@@ -2454,34 +2539,95 @@ function stopAdminCloudAutoRefresh() {
             </div>
 
 
+
+            <!-- ===================================================== -->
             <!-- PANEL LOGIN -->
-            <div class="login-panel lg:w-1/2 p-6 lg:p-16 flex items-center justify-center bg-white relative">
+            <!-- ===================================================== -->
+            <div class="
+                login-panel
+                lg:w-1/2
+                flex-1
+                flex
+                items-start lg:items-center
+                justify-center
+                px-6
+                py-7
+                lg:p-16
+                bg-white
+                relative
+                overflow-y-auto
+            ">
 
                 <div class="w-full max-w-md">
 
-                    <div class="absolute top-6 right-6">
+
+                    <!-- ================================================= -->
+                    <!-- THEME TOGGLE -->
+                    <!-- ================================================= -->
+                    <div class="
+                        absolute
+                        top-5
+                        right-5
+                        lg:top-6
+                        lg:right-6
+                    ">
                         ${themeToggleButton()}
                     </div>
 
-                    <div class="mb-6 lg:mb-8 pr-12">
 
-                        <h2 class="text-2xl font-bold text-slate-900">
+
+                    <!-- ================================================= -->
+                    <!-- HEADER LOGIN -->
+                    <!-- ================================================= -->
+                    <div class="
+                        mb-6
+                        lg:mb-8
+                        pr-14
+                    ">
+
+                        <h2 class="
+                            text-[30px]
+                            lg:text-2xl
+                            font-extrabold
+                            tracking-tight
+                            text-slate-900
+                        ">
                             Masuk
                         </h2>
 
-                        <p class="text-sm text-slate-500 mt-1">
+                        <p class="
+                            text-sm
+                            lg:text-sm
+                            text-slate-500
+                            mt-1.5
+                            leading-relaxed
+                        ">
                             Masukkan username dan password Anda.
                         </p>
 
                     </div>
 
 
-                    <form onsubmit="handleLogin(event)" class="space-y-5">
+
+                    <!-- ================================================= -->
+                    <!-- FORM LOGIN -->
+                    <!-- ================================================= -->
+                    <form
+                        onsubmit="handleLogin(event)"
+                        class="space-y-5"
+                    >
+
 
                         <!-- USERNAME -->
                         <div>
 
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+                            <label class="
+                                block
+                                text-xs
+                                font-semibold
+                                text-slate-600
+                                mb-2
+                            ">
                                 Username
                             </label>
 
@@ -2491,18 +2637,43 @@ function stopAdminCloudAutoRefresh() {
                                 placeholder="Masukkan username"
                                 autocomplete="username"
                                 required
-                                class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
+                                class="
+                                    w-full
+                                    px-4
+                                    py-3.5
+                                    bg-slate-50
+                                    border
+                                    border-slate-200
+                                    rounded-2xl
+                                    text-sm
+                                    font-medium
+                                    text-slate-800
+                                    placeholder:text-slate-400
+                                    focus:outline-none
+                                    focus:border-emerald-500
+                                    focus:ring-2
+                                    focus:ring-emerald-100
+                                    transition
+                                "
                             >
 
                         </div>
 
 
+
                         <!-- PASSWORD -->
                         <div>
 
-                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">
+                            <label class="
+                                block
+                                text-xs
+                                font-semibold
+                                text-slate-600
+                                mb-2
+                            ">
                                 Password
                             </label>
+
 
                             <div class="relative">
 
@@ -2512,13 +2683,44 @@ function stopAdminCloudAutoRefresh() {
                                     placeholder="Masukkan password"
                                     autocomplete="current-password"
                                     required
-                                    class="w-full px-4 py-3.5 pr-12 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
+                                    class="
+                                        w-full
+                                        px-4
+                                        py-3.5
+                                        pr-12
+                                        bg-slate-50
+                                        border
+                                        border-slate-200
+                                        rounded-2xl
+                                        text-sm
+                                        font-medium
+                                        text-slate-800
+                                        placeholder:text-slate-400
+                                        focus:outline-none
+                                        focus:border-emerald-500
+                                        focus:ring-2
+                                        focus:ring-emerald-100
+                                        transition
+                                    "
                                 >
 
+
+                                <!-- MATA PASSWORD -->
                                 <button
                                     type="button"
                                     onclick="toggleLoginPassword()"
-                                    class="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center text-slate-400"
+                                    class="
+                                        absolute
+                                        right-3
+                                        top-1/2
+                                        -translate-y-1/2
+                                        w-9
+                                        h-9
+                                        flex
+                                        items-center
+                                        justify-center
+                                        text-slate-400
+                                    "
                                     aria-label="Tampilkan password"
                                 >
                                     <i
@@ -2532,19 +2734,58 @@ function stopAdminCloudAutoRefresh() {
                         </div>
 
 
+
+                        <!-- ================================================= -->
                         <!-- TOMBOL MASUK -->
+                        <!-- ================================================= -->
                         <button
                             type="submit"
-                            class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-sm shadow-xl shadow-emerald-600/20 transition flex items-center justify-center gap-2"
+                            class="
+                                w-full
+                                py-4
+                                mt-1
+                                bg-emerald-600
+                                hover:bg-emerald-700
+                                text-white
+                                font-bold
+                                rounded-2xl
+                                text-sm
+                                shadow-xl
+                                shadow-emerald-600/20
+                                transition
+                                flex
+                                items-center
+                                justify-center
+                                gap-2
+                            "
                         >
 
                             <span>Masuk</span>
 
-                            <i class="fa-solid fa-arrow-right text-xs"></i>
+                            <i class="
+                                fa-solid
+                                fa-arrow-right
+                                text-xs
+                            "></i>
 
                         </button>
 
                     </form>
+
+
+
+                    <!-- ================================================= -->
+                    <!-- FOOTER MOBILE -->
+                    <!-- ================================================= -->
+                    <div class="
+                        lg:hidden
+                        text-center
+                        mt-6
+                        text-[11px]
+                        text-slate-400
+                    ">
+                        Sistem Manajemen Distribusi LPG 3Kg
+                    </div>
 
                 </div>
 
