@@ -1592,30 +1592,16 @@
     }
 
 }
-
-        /* =========================================================
-   MOBILE — HEADER TETAP SAAT SCROLL
-   HANYA MOBILE
-   LIGHT & DARK MODE
-   DESKTOP TIDAK DISENTUH
-   ========================================================= */
-
 /* =========================================================
-   MOBILE — HEADER FIXED SAAT SCROLL
-   HANYA MOBILE
-   ========================================================= */
-
-
-}
-        /* =========================================================
    MOBILE HEADER FIXED
-   HANYA MOBILE — DESKTOP TIDAK DISENTUH
+   HANYA MOBILE
    LOGIN TIDAK DISENTUH
+   DESKTOP TIDAK DISENTUH
    ========================================================= */
 
 @media (max-width: 1023px) {
 
-    body:not(:has(.login-shell)) #app header {
+    body:not(:has(.login-shell)) #app > div:has(> header) > header {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
@@ -1625,6 +1611,8 @@
     }
 
 }
+
+    
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-full flex flex-col antialiased selection:bg-emerald-500 selection:text-white custom-scrollbar">
