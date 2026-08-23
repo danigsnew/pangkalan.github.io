@@ -1711,6 +1711,27 @@ body:not(.theme-dark) .login-panel .fa-eye-slash {
 body:not(.theme-dark) .login-panel button[type="submit"] {
     color: #ffffff !important;
 }
+
+        /* =========================================================
+   DESKTOP LIGHT MODE — LOGIN INPUT
+   HANYA USERNAME & PASSWORD
+   MOBILE DAN DARK MODE TIDAK DISENTUH
+   ========================================================= */
+
+@media (min-width: 1024px) {
+
+    body:not(.theme-dark) .login-panel input {
+        background-color: #ffffff !important;
+        color: #263330 !important;
+        border-color: #cbd6d2 !important;
+    }
+
+    body:not(.theme-dark) .login-panel input::placeholder {
+        color: #7b8783 !important;
+        opacity: 1 !important;
+    }
+
+}
     
 </style>
 </head>
