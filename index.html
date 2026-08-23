@@ -1828,7 +1828,31 @@ body:not(.theme-dark) .login-panel button[type="submit"] {
     }
 
 }
-    
+    /* =========================================================
+   DESKTOP LIGHT MODE — HERO DASHBOARD
+   KHUSUS CONTAINER PALING ATAS DI BAWAH HEADER
+   ========================================================= */
+
+@media (min-width: 1024px) {
+
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main > div:first-child h1 {
+        color: #ffffff !important;
+    }
+
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main > div:first-child p {
+        color: #e2e8f0 !important;
+    }
+
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main > div:first-child .text-slate-400,
+    body:not(.theme-dark):not(:has(.login-shell))
+    #app > div:has(> header) > main > div:first-child .text-slate-500 {
+        color: #cbd5e1 !important;
+    }
+
+}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-full flex flex-col antialiased selection:bg-emerald-500 selection:text-white custom-scrollbar">
