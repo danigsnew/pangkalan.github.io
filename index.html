@@ -606,6 +606,15 @@
             background-color: rgba(59, 130, 246, .12) !important;
         }
 
+        /* V8.10.2: fix readability of emerald information card in dark mode.
+           Light mode is intentionally unchanged. */
+        body.theme-dark .text-emerald-950 {
+            color: #d1fae5 !important;
+        }
+        body.theme-dark .text-emerald-700 {
+            color: #6ee7b7 !important;
+        }
+
         /* Scrollbars */
         body.theme-dark ::-webkit-scrollbar {
             width: 10px;
