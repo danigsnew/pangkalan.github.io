@@ -1396,6 +1396,71 @@
             ]
         };
 
+        // Normalisasi database tanpa mengganti data pusat dengan data contoh.
+        // Hanya memastikan struktur/field wajib tersedia agar fungsi lama tetap aman.
+        function normalizeDB(db) {
+            if (!db || typeof db !== 'object') {
+                db = {};
+            }
+
+            if (!db.superAdminStock || typeof db.superAdminStock !== 'object') {
+                db.superAdminStock = { isi3kg: 0, kosong3kg: 0 };
+            }
+            if (db.superAdminStock.isi3kg === undefined) db.superAdminStock.isi3kg = 0;
+            if (db.superAdminStock.kosong3kg === undefined) db.superAdminStock.kosong3kg = 0;
+
+            const arrayKeys = [
+                'pangalans',
+                'customers',
+                'allocations',
+                'emptyReturnsToAgency',
+                'transactions',
+                'warungSales',
+                'warungReports',
+                'pangkalanStockAdjustments',
+                'payments',
+                'debts',
+                'customerTransactions',
+                'emptyAgencyReceipts',
+                'deletedCustomerIds'
+            ];
+
+            arrayKeys.forEach(key => {
+                if (!Array.isArray(db[key])) db[key] = [];
+            });
+
+            db.customers.forEach(c => {
+                if (!c || typeof c !== 'object') return;
+                if (!c.username && c.name) {
+                    c.username = String(c.name).toLowerCase().replace(/\\s+/g, '');
+                }
+                if (!c.password) c.password = '123';
+                if (c.quotaMonthly === undefined || c.quotaMonthly === null || c.quotaMonthly === '') {
+                    c.quotaMonthly = c.type === 'warung' ? 60 : 4;
+                }
+            });
+
+            db.transactions.forEach(t => {
+                if (!t || typeof t !== 'object') return;
+                if (t.qtyKosongDiambil === undefined) {
+                    t.qtyKosongDiambil = Math.max(0, Number(t.qty3kg || 0));
+                }
+                if (t.bayar === undefined) t.bayar = Number(t.totalHarga || 0);
+                if (!t.statusBayar) {
+                    t.statusBayar = Number(t.bayar || 0) >= Number(t.totalHarga || 0)
+                        ? 'lunas'
+                        : 'belum_lunas';
+                }
+            });
+
+            db.warungReports.forEach(r => {
+                if (!r || typeof r !== 'object') return;
+                if (!r.status) r.status = 'processed';
+            });
+
+            return db;
+        }
+
         // Database lokal hanya digunakan sebagai cache/session browser.
         // Database utama berada di Google Spreadsheet.
         function getDB() {
