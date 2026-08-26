@@ -1316,7 +1316,7 @@
     <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
     <script>
-        const DB_KEY = 'lpg_distribution_db_v13_no_supplier';
+        const DB_KEY = 'lpg_distribution_db_v14_v8_8_edit_sync';
 
         // ============================================================
         // DATABASE ONLINE - GOOGLE APPS SCRIPT
@@ -1592,6 +1592,21 @@
                 if (localData) {
                     try { localSession = JSON.parse(localData)?.currentUser || null; } catch (_) { localSession = null; }
                 }
+
+                // Sinkronkan identitas sesi Admin Pangkalan dari database pusat.
+                // Ini membuat perubahan nama/username Super Admin langsung ikut
+                // terlihat pada device yang sedang login tanpa logout manual.
+                if (localSession && String(localSession.role || '').toUpperCase() === 'ADMIN_PANGKALAN') {
+                    const sessionPangkalan = (cloudDB.pangalans || []).find(
+                        p => String(p.id) === String(localSession.pangkalanId || localSession.id || '')
+                    );
+                    if (sessionPangkalan) {
+                        localSession.name = sessionPangkalan.name;
+                        localSession.username = sessionPangkalan.username;
+                        localSession.pangkalanId = sessionPangkalan.id;
+                    }
+                }
+
                 cloudDB.currentUser = localSession;
                 localStorage.setItem(DB_KEY, JSON.stringify(cloudDB));
                 cloudDBReady = true;
@@ -3332,22 +3347,121 @@
             `);
         }
 
-        function submitEditPangkalan(e, id) {
+        async function submitEditPangkalan(e, id) {
             e.preventDefault();
+
             const db = getDB();
-            const pang = db.pangalans.find(p => p.id === id);
+            const pang = db.pangalans.find(p => String(p.id) === String(id));
             if (!pang) return;
 
-            pang.name = document.getElementById('editPangName').value.trim();
-            pang.address = document.getElementById('editPangAddress').value.trim();
-            pang.username = document.getElementById('editPangUsername').value.trim().toLowerCase();
-            pang.password = document.getElementById('editPangPassword').value.trim();
-            pang.updatedAt = new Date().toISOString();
+            const name = document.getElementById('editPangName')?.value.trim() || '';
+            const address = document.getElementById('editPangAddress')?.value.trim() || '';
+            const username = document.getElementById('editPangUsername')?.value.trim().toLowerCase() || '';
+            const password = document.getElementById('editPangPassword')?.value.trim() || '';
 
-            saveDB(db);
-            closeModal();
-            showAlert('Perubahan Disimpan', `Data ${pang.name} berhasil diperbarui.`);
-            render();
+            if (!name || !address || !username || !password) {
+                showAlert('Gagal Simpan', 'Semua data pangkalan wajib diisi.', 'error');
+                return;
+            }
+
+            const duplicate = (db.pangalans || []).some(p =>
+                String(p.id) !== String(id) &&
+                String(p.username || '').trim().toLowerCase() === username
+            );
+
+            if (duplicate) {
+                showAlert('Gagal Simpan', 'Username pangkalan sudah digunakan!', 'error');
+                return;
+            }
+
+            const actor = db.currentUser ? {
+                role: db.currentUser.role || null,
+                id: db.currentUser.id || null,
+                pangkalanId: db.currentUser.pangkalanId || null,
+                name: db.currentUser.name || null
+            } : null;
+
+            try {
+                if (IS_EMBEDDED_PREVIEW) {
+                    throw new Error('Perubahan pangkalan tidak dapat dilakukan pada preview.');
+                }
+
+                // Jalur khusus database pusat. Tidak memakai saveDB() agar
+                // identitas pangkalan tidak bergantung pada merge browser.
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        action: 'updatePangkalan',
+                        pangkalanId: id,
+                        data: {
+                            name,
+                            address,
+                            username,
+                            password,
+                            phone: pang.phone || ''
+                        },
+                        actor
+                    })
+                });
+
+                // Tunggu server menyelesaikan penulisan lalu baca ulang
+                // database pusat sebagai satu-satunya sumber kebenaran.
+                await new Promise(resolve => setTimeout(resolve, 700));
+
+                const loaded = await loadDBFromCloud();
+                if (!loaded) {
+                    throw new Error('Database pusat tidak dapat diverifikasi setelah perubahan pangkalan.');
+                }
+
+                const verifyDB = getDB();
+                const savedPangkalan = (verifyDB.pangalans || []).find(
+                    p => String(p.id) === String(id)
+                );
+
+                if (!savedPangkalan) {
+                    throw new Error('Pangkalan tidak ditemukan di database pusat setelah perubahan.');
+                }
+
+                if (
+                    String(savedPangkalan.name || '') !== name ||
+                    String(savedPangkalan.address || '') !== address ||
+                    String(savedPangkalan.username || '').trim().toLowerCase() !== username
+                ) {
+                    throw new Error('Perubahan belum tersimpan sesuai data pusat.');
+                }
+
+                // Jika Admin Pangkalan sedang aktif di browser ini,
+                // sinkronkan label sesi dengan nama resmi dari database pusat.
+                const refreshed = getDB();
+                if (
+                    refreshed.currentUser &&
+                    String(refreshed.currentUser.pangkalanId || '') === String(id)
+                ) {
+                    refreshed.currentUser.name = savedPangkalan.name;
+                    refreshed.currentUser.username = savedPangkalan.username;
+                    localStorage.setItem(DB_KEY, JSON.stringify(normalizeDB(refreshed)));
+                }
+
+                closeModal();
+                showAlert(
+                    'Perubahan Disimpan',
+                    `Data ${savedPangkalan.name} berhasil diperbarui dan disinkronkan ke semua perangkat.`
+                );
+                render();
+
+            } catch (error) {
+                console.error('Gagal edit pangkalan:', error);
+                await loadDBFromCloud();
+                render();
+                showAlert(
+                    'Gagal Simpan',
+                    error.message || 'Perubahan pangkalan gagal disimpan.',
+                    'error'
+                );
+            }
         }
 
         function confirmDeletePangkalan(id) {
