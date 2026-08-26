@@ -1872,40 +1872,23 @@
 
             /*
              * Stok kosong aktif:
-             * penjualan eceran
-             * - kosong yang benar-benar ditarik melalui alur baru
-             *   (reportId) atau mode tarik_kosong.
+             * seluruh tabung kosong yang terbentuk dari penjualan eceran
+             * dikurangi seluruh tabung kosong yang benar-benar ditarik Admin.
              *
-             * Transaksi legacy 10 isi + 10 kosong tanpa reportId tidak
-             * dikurangkan lagi dari penjualan baru karena catatan kosong
-             * tersebut sudah dipakai untuk rekonsiliasi histori lama.
+             * PENTING:
+             * Semua transaksi Admin yang memiliki qtyKosongDiambil adalah
+             * pergerakan fisik kosong, termasuk transaksi legacy/manual.
+             * Karena itu semuanya harus ikut mengurangi stok kosong.
+             * Dengan aturan ini, ketika satu transaksi Admin dihapus,
+             * dampak penarikan kosong dari transaksi tersebut juga otomatis
+             * hilang dari ledger Warung.
              */
             const totalKosongDitarikAktif = trxs.reduce(
-                (sum, t) => {
-                    const qty = Math.max(
+                (sum, t) =>
+                    sum + Math.max(
                         0,
                         Number(t.qtyKosongDiambil || 0)
-                    );
-
-                    if (qty <= 0) return sum;
-
-                    const mode = String(
-                        t.modePenukaran ||
-                        t.jenisTransaksi ||
-                        ''
-                    ).toLowerCase();
-
-                    const isTarikKosong =
-                        mode === 'tarik_kosong' ||
-                        String(t.jenisTransaksi || '').toLowerCase() === 'tarik_kosong';
-
-                    const hasReport =
-                        Boolean(t.reportId);
-
-                    return (isTarikKosong || hasReport)
-                        ? sum + qty
-                        : sum;
-                },
+                    ),
                 0
             );
 
@@ -2393,9 +2376,14 @@
                                                 <strong class="text-sm font-bold text-rose-600 mt-0.5 block">Rp ${(inv.totalSisaPiutang/1000).toFixed(0)}k</strong>
                                             </div>
                                         </div>
-                                        <button onclick="openPangkalanHistoryModal('${p.id}')" class="w-full py-2.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold rounded-2xl text-xs transition flex items-center justify-center gap-2 shadow-md">
-                                            <i class="fa-solid fa-clock-rotate-left"></i> Detail & Histori Mutasi Pangkalan
-                                        </button>
+                                        <div class="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100">
+                                            <button onclick="openEditAllocationModal('${p.id}')" title="Edit Alokasi" class="py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold rounded-2xl text-xs transition flex items-center justify-center gap-2">
+                                                <i class="fa-solid fa-boxes-stacked"></i> Edit Alokasi
+                                            </button>
+                                            <button onclick="openPangkalanHistoryModal('${p.id}')" class="py-2.5 bg-slate-900 hover:bg-emerald-600 text-white font-bold rounded-2xl text-xs transition flex items-center justify-center gap-2 shadow-md">
+                                                <i class="fa-solid fa-clock-rotate-left"></i> Detail & Histori
+                                            </button>
+                                        </div>
                                     </div>
                                 `;
                             }).join('')}
@@ -3592,6 +3580,177 @@
             showAlert('Alokasi Terkirim', `${qty} tabung isi telah dialokasikan.`);
         }
 
+        function openEditAllocationModal(pId) {
+            const db = getDB();
+            const pang = (db.pangalans || []).find(p => String(p.id) === String(pId));
+            if (!pang) return;
+
+            const allocations = (db.allocations || [])
+                .filter(a => String(a.pangkalanId) === String(pId))
+                .slice()
+                .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+
+            if (!allocations.length) {
+                showModal(
+                    'Edit Alokasi Pangkalan',
+                    `Belum ada alokasi untuk ${pang.name}`,
+                    'fa-boxes-stacked',
+                    'bg-indigo-100 text-indigo-600',
+                    `
+                    <div class="space-y-4">
+                        <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-600">
+                            Pangkalan ini belum memiliki riwayat alokasi tabung dari Super Admin.
+                        </div>
+                        <button type="button" onclick="closeModal(); openAllocationModal();"
+                            class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm">
+                            <i class="fa-solid fa-paper-plane mr-1"></i> Kirim Alokasi Baru
+                        </button>
+                    </div>`
+                );
+                return;
+            }
+
+            const totalAlokasi = allocations.reduce((sum, a) => sum + Number(a.isi3kg || 0), 0);
+            const totalTerjual = (db.transactions || [])
+                .filter(t => String(t.pangkalanId) === String(pId) && isActiveTransaction(t))
+                .reduce((sum, t) => sum + Number(t.qty3kg || 0), 0);
+
+            showModal(
+                `Edit Alokasi - ${pang.name}`,
+                `Total alokasi ${totalAlokasi} tabung • Terjual ${totalTerjual} tabung`,
+                'fa-boxes-stacked',
+                'bg-indigo-100 text-indigo-600',
+                `
+                <div class="space-y-4">
+                    <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl text-xs text-indigo-800">
+                        <strong>Aturan:</strong> total alokasi aktif tidak boleh lebih kecil dari jumlah tabung yang sudah terjual.
+                        Jika alokasi dinaikkan, stok gudang Super Admin berkurang sesuai selisih. Jika diturunkan, stok gudang pusat bertambah sesuai selisih.
+                    </div>
+                    <div class="space-y-3 max-h-[55vh] overflow-y-auto custom-scrollbar pr-1">
+                        ${allocations.map(a => `
+                            <div class="p-4 bg-white border border-slate-200 rounded-2xl">
+                                <div class="flex justify-between items-center mb-3">
+                                    <div>
+                                        <p class="text-[10px] uppercase font-bold text-slate-400">ID Alokasi</p>
+                                        <p class="text-xs font-bold text-slate-700">${a.id}</p>
+                                    </div>
+                                    <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-[10px] font-bold">
+                                        ${Number(a.isi3kg || 0)} Tabung
+                                    </span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 mb-1">Tanggal</label>
+                                        <input type="date" id="allocDate_${a.id}" value="${a.date || ''}"
+                                            class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-slate-500 mb-1">Jumlah Tabung</label>
+                                        <input type="number" id="allocQty_${a.id}" min="0" value="${Number(a.isi3kg || 0)}"
+                                            class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold">
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Status</label>
+                                    <select id="allocStatus_${a.id}" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold">
+                                        <option value="Terkirim" ${a.status === 'Terkirim' ? 'selected' : ''}>Terkirim</option>
+                                        <option value="Selesai" ${a.status === 'Selesai' ? 'selected' : ''}>Selesai</option>
+                                        <option value="Dibatalkan" ${a.status === 'Dibatalkan' ? 'selected' : ''}>Dibatalkan</option>
+                                    </select>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="flex gap-3 pt-2">
+                        <button type="button" onclick="closeModal()"
+                            class="w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm">Batal</button>
+                        <button type="button" onclick="saveEditedAllocations('${pId}')"
+                            class="w-2/3 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-md">
+                            <i class="fa-solid fa-floppy-disk mr-1"></i> Simpan Alokasi
+                        </button>
+                    </div>
+                </div>`
+            );
+        }
+
+        function saveEditedAllocations(pId) {
+            const db = getDB();
+            const pang = (db.pangalans || []).find(p => String(p.id) === String(pId));
+            if (!pang) return;
+
+            const allocations = (db.allocations || [])
+                .filter(a => String(a.pangkalanId) === String(pId));
+            if (!allocations.length) {
+                closeModal();
+                return;
+            }
+
+            const totalTerjual = (db.transactions || [])
+                .filter(t => String(t.pangkalanId) === String(pId) && isActiveTransaction(t))
+                .reduce((sum, t) => sum + Number(t.qty3kg || 0), 0);
+
+            let oldTotal = 0;
+            let newTotal = 0;
+            const updates = [];
+
+            for (const a of allocations) {
+                const oldQty = Number(a.isi3kg || 0);
+                const qtyInput = document.getElementById(`allocQty_${a.id}`);
+                const dateInput = document.getElementById(`allocDate_${a.id}`);
+                const statusInput = document.getElementById(`allocStatus_${a.id}`);
+
+                const newQty = Math.max(0, Number(qtyInput?.value || 0));
+                const newDate = dateInput?.value || a.date || new Date().toISOString().slice(0, 10);
+                const newStatus = statusInput?.value || a.status || 'Terkirim';
+
+                oldTotal += oldQty;
+                newTotal += newQty;
+                updates.push({ allocation: a, oldQty, newQty, newDate, newStatus });
+            }
+
+            if (newTotal < totalTerjual) {
+                showAlert(
+                    'Alokasi Tidak Valid',
+                    `Total alokasi ${newTotal} tabung tidak boleh lebih kecil dari total transaksi aktif ${totalTerjual} tabung.`,
+                    'error'
+                );
+                return;
+            }
+
+            const delta = newTotal - oldTotal;
+            const stockPusat = Number(db.superAdminStock?.isi3kg || 0);
+
+            if (delta > stockPusat) {
+                showAlert(
+                    'Stok Gudang Tidak Cukup',
+                    `Tambahan alokasi ${delta} tabung melebihi stok gudang pusat ${stockPusat} tabung.`,
+                    'error'
+                );
+                return;
+            }
+
+            if (!db.superAdminStock) {
+                db.superAdminStock = { isi3kg: 0, kosong3kg: 0 };
+            }
+
+            updates.forEach(item => {
+                item.allocation.isi3kg = item.newQty;
+                item.allocation.date = item.newDate;
+                item.allocation.status = item.newStatus;
+                item.allocation.updatedAt = new Date().toISOString();
+            });
+
+            db.superAdminStock.isi3kg = Math.max(0, stockPusat - delta);
+            saveDB(db);
+
+            closeModal();
+            render();
+            showAlert(
+                'Alokasi Diperbarui',
+                `Alokasi ${pang.name} berhasil disimpan. Total alokasi sekarang ${newTotal} tabung.`
+            );
+        }
+
         function openPangkalanHistoryModal(pId) {
             const db = getDB();
             const pang = db.pangalans.find(p => p.id === pId);
@@ -4669,18 +4828,32 @@
             db.transactions.splice(index, 1);
 
             // Jika transaksi berasal dari laporan Warung, sinkronkan ulang
-            // laporan yang sama agar status dan sisa permintaannya ikut berubah.
+            // laporan yang sama. Setelah transaksi dihapus, qty yang pernah
+            // diproses harus kembali dihitung dari transaksi aktif yang masih ada.
+            // Ledger Warung juga otomatis ikut menghitung ulang karena transaksi
+            // yang dihapus tidak lagi masuk ke getWarungInventory().
             if (deletedReportId) {
                 syncWarungReportFromTransactions(deletedReportId, db);
             }
 
             saveDB(db);
 
+            // Pastikan tampilan lokal langsung memakai ledger terbaru setelah
+            // penghapusan. Tidak ada stok yang disimpan sebagai angka terpisah.
+            const affectedCustomerId = trx.customerId;
+            const affectedInventory = affectedCustomerId
+                ? getWarungInventory(affectedCustomerId)
+                : null;
+
             render();
+
+            const inventoryText = affectedInventory
+                ? ` Stok warung kini ${Number(affectedInventory.estimasiStokIsiWarung || 0)} isi dan ${Number(affectedInventory.estimasiStokKosongWarung || 0)} kosong.`
+                : '';
 
             showAlert(
                 'Transaksi Dihapus',
-                `Transaksi ${customerName} berhasil dihapus permanen dari database.`,
+                `Transaksi ${customerName} berhasil dihapus permanen dari database.${inventoryText}`,
                 'success'
             );
         }
