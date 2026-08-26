@@ -1317,6 +1317,20 @@
 
     <script>
         const DB_KEY = 'lpg_distribution_db_v13_no_supplier';
+
+        // ============================================================
+        // DATABASE ONLINE - GOOGLE APPS SCRIPT
+        // V8: DB online aktif kembali; localStorage hanya cache/session.
+        // ============================================================
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxK4LOi9wWFsBXm3QqP-bovZWNVnNCNLYQGUG_XLuwsVLilnESgVvanr23pcA1pFrG-/exec';
+        const IS_EMBEDDED_PREVIEW = window.top !== window.self;
+        let cloudDBLoading = false;
+        let cloudDBReady = false;
+        let cloudSaveTimer = null;
+        let cloudSaveInFlight = false;
+        let cloudSavePending = null;
+        let customerDeletionInProgress = false;
+
         const HET_PEMERINTAH = 16000; // Harga Eceran Tertinggi Modal Pangkalan
         const HARGA_JUAL_STANDAR = 19000; // Harga Jual Standar Pangkalan ke Warung/Perorangan
 
@@ -1382,44 +1396,165 @@
             ]
         };
 
+        // Database lokal hanya digunakan sebagai cache/session browser.
+        // Database utama berada di Google Spreadsheet.
         function getDB() {
             const data = localStorage.getItem(DB_KEY);
-            let db = data ? JSON.parse(data) : defaultDB;
-            
-            if (!db.superAdminStock) db.superAdminStock = { isi3kg: 0, kosong3kg: 0 };
-            if (db.superAdminStock.isi3kg === undefined) db.superAdminStock.isi3kg = 0;
-            if (db.superAdminStock.kosong3kg === undefined) db.superAdminStock.kosong3kg = 0;
-            if (!db.allocations) db.allocations = [];
-            if (!db.emptyReturnsToAgency) db.emptyReturnsToAgency = [];
-            if (!db.warungSales) db.warungSales = [];
-            if (!db.pangkalanStockAdjustments) db.pangkalanStockAdjustments = [];
-            
-            if (db.customers) {
-                db.customers.forEach(c => {
-                    if (!c.username) c.username = c.name.toLowerCase().replace(/\s+/g, '');
-                    if (!c.password) c.password = '123';
-                    if (!c.quotaMonthly) c.quotaMonthly = c.type === 'warung' ? 60 : 4;
-                });
+            let db;
+
+            if (data) {
+                try {
+                    db = JSON.parse(data);
+                } catch (error) {
+                    console.error('Cache database rusak:', error);
+                    db = structuredClone(defaultDB);
+                }
+            } else {
+                db = structuredClone(defaultDB);
             }
-            if (db.transactions) {
-                db.transactions.forEach(t => {
-                    if (t.qtyKosongDiambil === undefined) t.qtyKosongDiambil = t.qty3kg;
-                    if (!t.statusBayar) t.statusBayar = (t.bayar >= t.totalHarga) ? 'lunas' : 'belum_lunas';
-                    if (t.bayar === undefined) t.bayar = t.totalHarga;
-                });
+
+            return normalizeDB(db);
+        }
+
+        // Semua perubahan disimpan ke cache lalu dikirim ke Google Apps Script.
+        function saveDB(db) {
+            normalizeDB(db);
+            localStorage.setItem(DB_KEY, JSON.stringify(db));
+
+            if (!IS_EMBEDDED_PREVIEW) {
+                cloudSavePending = structuredClone(db);
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = setTimeout(() => {
+                    processCloudSave();
+                }, 300);
             }
-            if (db.warungReports) {
-                db.warungReports.forEach(r => {
-                    if (!r.status) r.status = 'processed';
-                });
-            }
-            
-            if (!data) saveDB(db);
+
             return db;
         }
 
-        function saveDB(db) {
-            localStorage.setItem(DB_KEY, JSON.stringify(db));
+        async function processCloudSave() {
+            cloudSaveTimer = null;
+
+            if (cloudSaveInFlight || !cloudSavePending) return;
+
+            const dbToSend = cloudSavePending;
+            cloudSavePending = null;
+            cloudSaveInFlight = true;
+
+            try {
+                await saveDBToCloud(dbToSend);
+            } catch (error) {
+                console.error('Gagal menyimpan database terbaru ke cloud:', error);
+            } finally {
+                cloudSaveInFlight = false;
+                if (cloudSavePending) {
+                    cloudSaveTimer = setTimeout(() => processCloudSave(), 100);
+                }
+            }
+        }
+
+        async function saveDBToCloud(db) {
+            if (IS_EMBEDDED_PREVIEW) return { success: true, skipped: true };
+
+            const actor = db.currentUser ? {
+                role: db.currentUser.role || null,
+                id: db.currentUser.id || null,
+                pangkalanId: db.currentUser.pangkalanId || null,
+                name: db.currentUser.name || null
+            } : { role: null, id: null, pangkalanId: null, name: null };
+
+            const cloudDB = structuredClone(db);
+            cloudDB.currentUser = null;
+
+            const payload = JSON.stringify({
+                action: 'saveDB',
+                db: cloudDB,
+                actor
+            });
+
+            try {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    keepalive: true,
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: payload
+                });
+                cloudDBReady = true;
+                console.log('Database dikirim ke Google Apps Script.');
+                return { success: true };
+            } catch (error) {
+                console.error('Fetch cloud gagal, mencoba sendBeacon:', error);
+                try {
+                    const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' });
+                    const sent = navigator.sendBeacon(API_URL, blob);
+                    if (!sent) throw new Error('sendBeacon tidak dapat mengirim data.');
+                    cloudDBReady = true;
+                    console.log('Database dikirim menggunakan sendBeacon.');
+                    return { success: true };
+                } catch (beaconError) {
+                    cloudDBReady = false;
+                    console.error('Gagal mengirim database ke cloud:', beaconError);
+                    throw beaconError;
+                }
+            }
+        }
+
+        async function loadDBFromCloud() {
+            if (IS_EMBEDDED_PREVIEW || cloudDBLoading) return false;
+            cloudDBLoading = true;
+
+            try {
+                const response = await fetch(API_URL + '?action=getDB&_=' + Date.now(), {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const result = await response.json();
+                if (!result.success) throw new Error(result.message || 'Gagal mengambil database.');
+
+                if (!result.db) {
+                    console.error('Database pusat belum tersedia. Cache lokal dipertahankan; tidak overwrite cloud.');
+                    cloudDBReady = false;
+                    return false;
+                }
+
+                const cloudDB = normalizeDB(result.db);
+                const localData = localStorage.getItem(DB_KEY);
+                let localSession = null;
+                if (localData) {
+                    try { localSession = JSON.parse(localData)?.currentUser || null; } catch (_) { localSession = null; }
+                }
+                cloudDB.currentUser = localSession;
+                localStorage.setItem(DB_KEY, JSON.stringify(cloudDB));
+                cloudDBReady = true;
+                console.log('DATABASE ONLINE berhasil dimuat dari Google Sheet.');
+                return true;
+            } catch (error) {
+                cloudDBReady = false;
+                console.error('Gagal mengambil database cloud:', error);
+                return false;
+            } finally {
+                cloudDBLoading = false;
+            }
+        }
+
+        async function forceSyncToCloud() {
+            const db = getDB();
+            try {
+                await saveDBToCloud(db);
+                return true;
+            } catch (error) {
+                console.error('Force sync gagal:', error);
+                return false;
+            }
+        }
+
+        async function refreshCloudDatabase() {
+            await loadDBFromCloud();
+            render();
         }
 
         function getPangkalanInventory(pangkalanId) {
@@ -1852,107 +1987,90 @@
             userInp.value = pang?.username || '';
         }
 
-        function handleLogin(e) {
+        async function handleLogin(e) {
             e.preventDefault();
 
-            const username = document.getElementById('loginUsername').value.trim();
-            const password = document.getElementById('loginPassword').value.trim();
-            const db = getDB();
+            const button = e.submitter || document.querySelector('form[onsubmit*="handleLogin"] button[type="submit"]');
+            const originalText = button?.innerHTML || '';
+            const username = document.getElementById('loginUsername')?.value.trim() || '';
+            const password = document.getElementById('loginPassword')?.value.trim() || '';
 
             if (!username || !password) {
                 showAlert('Gagal Masuk', 'Username dan password wajib diisi.', 'error');
                 return;
             }
 
-            const normalizedUsername = username.toLowerCase();
-
-            // Super Admin
-            if (normalizedUsername === 'superadmin' && password === '123') {
-                db.currentUser = {
-                    role: 'superadmin',
-                    name: 'Super Admin Pusat',
-                    pangkalanId: null
-                };
-                saveDB(db);
-                showAlert('Berhasil Masuk', 'Selamat datang, Super Admin Pusat!');
-                render();
-                return;
+            if (button) {
+                button.disabled = true;
+                button.innerHTML = '<span>Memeriksa...</span>';
             }
 
-            // Admin Pangkalan: cari otomatis dari seluruh data pangkalan.
-            const pang = (db.pangalans || []).find(p =>
-                String(p.username || '').toLowerCase() === normalizedUsername &&
-                String(p.password || '') === password
-            );
+            try {
+                if (!API_URL || IS_EMBEDDED_PREVIEW) {
+                    throw new Error('Database online tidak tersedia pada preview.');
+                }
 
-            if (pang) {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    cache: 'no-store',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'login', username, password })
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const result = await response.json();
+                console.log('HASIL LOGIN API:', result);
+
+                if (!result.success || !result.user) {
+                    showAlert('Gagal Masuk', result.message || 'Username atau password salah.', 'error');
+                    return;
+                }
+
+                const apiUser = result.user;
+                let frontendRole = '';
+                switch (String(apiUser.role || '').toUpperCase()) {
+                    case 'ADMIN_PANGKALAN':
+                    case 'ADMIN': frontendRole = 'admin'; break;
+                    case 'SUPER_ADMIN':
+                    case 'SUPERADMIN': frontendRole = 'superadmin'; break;
+                    case 'WARUNG': frontendRole = 'warung'; break;
+                    case 'PERORANGAN':
+                    case 'PELANGGAN': frontendRole = 'perorangan'; break;
+                    default: throw new Error(`Role "${apiUser.role}" belum dikenali frontend.`);
+                }
+
+                // Jangan saveDB() saat login; yang disimpan hanya sesi browser.
+                const db = getDB();
                 db.currentUser = {
-                    role: 'admin',
-                    name: `Admin ${pang.name}`,
-                    pangkalanId: pang.id
+                    id: apiUser.id || null,
+                    name: apiUser.name || username,
+                    username: apiUser.username || username,
+                    role: frontendRole,
+                    pangkalanId: apiUser.pangkalanId || null
                 };
-                saveDB(db);
-                showAlert('Berhasil Masuk', `Selamat datang di ${pang.name}!`);
+                localStorage.setItem(DB_KEY, JSON.stringify(normalizeDB(db)));
+
+                console.log('SESSION LOGIN:', db.currentUser);
+                showAlert('Berhasil Masuk', `Selamat datang, ${db.currentUser.name}!`);
                 render();
-                return;
+            } catch (error) {
+                console.error('LOGIN API ERROR:', error);
+                showAlert('Gagal Terhubung', 'Tidak dapat menghubungi database pusat. Periksa koneksi internet atau URL Apps Script.', 'error');
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = originalText || '<span>Masuk</span><i class="fa-solid fa-arrow-right text-xs"></i>';
+                }
             }
-
-            // Warung
-            const warung = (db.customers || []).find(c =>
-                c.type === 'warung' &&
-                (
-                    String(c.username || '').toLowerCase() === normalizedUsername ||
-                    String(c.name || '').toLowerCase() === normalizedUsername
-                ) &&
-                String(c.password || '') === password
-            );
-
-            if (warung) {
-                db.currentUser = {
-                    id: warung.id,
-                    role: 'warung',
-                    name: warung.name,
-                    username: warung.username,
-                    pangkalanId: warung.pangkalanId
-                };
-                saveDB(db);
-                showAlert('Berhasil Masuk', `Selamat datang, ${warung.name}!`);
-                render();
-                return;
-            }
-
-            // Pelanggan perorangan
-            const pelanggan = (db.customers || []).find(c =>
-                c.type === 'perorangan' &&
-                (
-                    String(c.username || '').toLowerCase() === normalizedUsername ||
-                    String(c.name || '').toLowerCase() === normalizedUsername
-                ) &&
-                String(c.password || '') === password
-            );
-
-            if (pelanggan) {
-                db.currentUser = {
-                    id: pelanggan.id,
-                    role: 'perorangan',
-                    name: pelanggan.name,
-                    username: pelanggan.username,
-                    pangkalanId: pelanggan.pangkalanId
-                };
-                saveDB(db);
-                showAlert('Berhasil Masuk', `Selamat datang, ${pelanggan.name}!`);
-                render();
-                return;
-            }
-
-            showAlert('Gagal Masuk', 'Username atau password salah.', 'error');
         }
-
 
         function handleLogout() {
             const db = getDB();
             db.currentUser = null;
-            saveDB(db); showAlert('Keluar Sesi', 'Anda telah keluar dari sistem.'); render();
+            localStorage.setItem(DB_KEY, JSON.stringify(normalizeDB(db)));
+            showAlert('Keluar Sesi', 'Anda telah keluar dari sistem.');
+            render();
         }
 
         function render() {
@@ -3004,7 +3122,9 @@
                 address,
                 username,
                 password,
-                phone: ''
+                phone: '',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             };
 
             db.pangalans.push(newPangkalan);
@@ -3066,6 +3186,7 @@
             pang.address = document.getElementById('editPangAddress').value.trim();
             pang.username = document.getElementById('editPangUsername').value.trim().toLowerCase();
             pang.password = document.getElementById('editPangPassword').value.trim();
+            pang.updatedAt = new Date().toISOString();
 
             saveDB(db);
             closeModal();
@@ -3092,56 +3213,55 @@
             `);
         }
 
-        function deletePangkalan(id) {
+        async function deletePangkalan(id) {
             const db = getDB();
-            const pangIndex = db.pangalans.findIndex(p => p.id === id);
+            const pangIndex = db.pangalans.findIndex(p => String(p.id) === String(id));
             if (pangIndex === -1) return;
 
-            const deletedName = db.pangalans[pangIndex].name;
+            const pang = db.pangalans[pangIndex];
+            const deletedName = pang.name;
 
-            // Saat pangkalan dihapus, seluruh alokasi yang pernah dikirim
-            // ke pangkalan tersebut dikembalikan ke stok gudang pusat.
-            const totalAlokasiDikembalikan = (db.allocations || [])
-                .filter(a => a.pangkalanId === id)
-                .reduce((sum, a) => sum + Number(a.isi3kg || 0), 0);
+            try {
+                if (IS_EMBEDDED_PREVIEW) throw new Error('Penghapusan pangkalan tidak dapat dilakukan pada preview.');
 
-            if (!db.superAdminStock) {
-                db.superAdminStock = { isi3kg: 0, kosong3kg: 0 };
+                const payload = JSON.stringify({
+                    action: 'deletePangkalan',
+                    pangkalanId: id,
+                    actor: db.currentUser ? {
+                        role: db.currentUser.role || null,
+                        id: db.currentUser.id || null,
+                        pangkalanId: db.currentUser.pangkalanId || null,
+                        name: db.currentUser.name || null
+                    } : null
+                });
+
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: payload
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 700));
+                const loaded = await loadDBFromCloud();
+                if (!loaded) throw new Error('Database pusat tidak dapat diverifikasi setelah penghapusan.');
+
+                const verifyDB = getDB();
+                const stillExists = (verifyDB.pangalans || []).some(p => String(p.id) === String(id));
+                if (stillExists) {
+                    throw new Error('Pangkalan masih tercatat di database pusat. Penghapusan belum berhasil.');
+                }
+
+                closeModal();
+                showAlert('Pangkalan Dihapus', `Pangkalan ${deletedName} berhasil dihapus permanen dari database pusat.`);
+                render();
+            } catch (error) {
+                console.error('Gagal menghapus pangkalan:', error);
+                await loadDBFromCloud();
+                render();
+                showAlert('Gagal Menghapus', error.message || 'Penghapusan pangkalan gagal diproses.', 'error');
             }
-
-            db.superAdminStock.isi3kg =
-                Number(db.superAdminStock.isi3kg || 0) + totalAlokasiDikembalikan;
-
-            // Hapus seluruh data yang terkait dengan pangkalan agar
-            // akun/data cabang yang sudah dihapus tidak tersisa.
-            db.allocations = (db.allocations || []).filter(a => a.pangkalanId !== id);
-            db.transactions = (db.transactions || []).filter(t => t.pangkalanId !== id);
-            db.emptyReturnsToAgency = (db.emptyReturnsToAgency || []).filter(r => r.pangkalanId !== id);
-            db.warungReports = (db.warungReports || []).filter(r => r.pangkalanId !== id);
-            db.customers = (db.customers || []).filter(c => c.pangkalanId !== id);
-
-            // Hapus pangkalan.
-            db.pangalans.splice(pangIndex, 1);
-
-            // Jika admin yang sedang login adalah pangkalan yang dihapus,
-            // putuskan sesi agar tidak ada akses ke dashboard yang sudah dihapus.
-            if (db.currentUser?.role === 'admin' && db.currentUser?.pangkalanId === id) {
-                db.currentUser = null;
-            }
-
-            saveDB(db);
-            closeModal();
-
-            const pesanStok = totalAlokasiDikembalikan > 0
-                ? ` ${totalAlokasiDikembalikan} tabung isi dikembalikan ke stok gudang pusat.`
-                : ' Tidak ada alokasi tabung yang perlu dikembalikan.';
-
-            showAlert(
-                'Pangkalan Dihapus',
-                `Pangkalan ${deletedName} berhasil dihapus.${pesanStok}`
-            );
-
-            render();
         }
 
         function ensureEmptyAgencyReceiptData() {
@@ -4080,6 +4200,7 @@
             warung.username = newUsername;
             warung.password = document.getElementById('editWarungPassword').value.trim();
             warung.phone = document.getElementById('editWarungPhone').value.trim();
+            warung.updatedAt = new Date().toISOString();
 
             saveDB(db);
             closeModal();
@@ -4127,13 +4248,13 @@
             );
         }
 
-        function deleteWarung(customerId) {
+        async function deleteWarung(customerId) {
             const db = getDB();
             const pangId = db.currentUser?.pangkalanId;
 
             const index = db.customers.findIndex(c =>
-                c.id === customerId &&
-                c.pangkalanId === pangId &&
+                String(c.id) === String(customerId) &&
+                String(c.pangkalanId) === String(pangId) &&
                 c.type === 'warung'
             );
             if (index === -1) return;
@@ -4142,76 +4263,67 @@
             const warungName = String(warung.name || '').trim();
             const inv = getWarungInventory(customerId);
 
-            const isiKembali = Number(inv.estimasiStokIsiWarung || 0);
-            const kosongKembali = Number(inv.estimasiStokKosongWarung || 0);
+            try {
+                if (IS_EMBEDDED_PREVIEW) throw new Error('Penghapusan warung tidak dapat dilakukan pada preview.');
 
-            // Histori akan dihapus, sehingga stok kosong yang masih berada
-            // di warung harus dicatat sebagai adjustment permanen di pangkalan.
-            if (!db.pangkalanStockAdjustments) db.pangkalanStockAdjustments = [];
+                // Simpan adjustment stok secara lokal terlebih dahulu; backend delete
+                // akan menghapus customer + histori online secara permanen.
+                if (!db.pangkalanStockAdjustments) db.pangkalanStockAdjustments = [];
+                db.pangkalanStockAdjustments = db.pangkalanStockAdjustments.filter(a =>
+                    !(a.source === 'warung_deleted' && String(a.sourceId) === String(customerId))
+                );
 
-            // Bersihkan adjustment lama untuk warung ini agar tidak double count.
-            db.pangkalanStockAdjustments = db.pangkalanStockAdjustments.filter(a =>
-                !(a.source === 'warung_deleted' && a.sourceId === customerId)
-            );
+                if (Number(inv.estimasiStokKosongWarung || 0) > 0) {
+                    db.pangkalanStockAdjustments.push({
+                        id: 'adj_empty_' + Date.now(),
+                        pangkalanId: pangId,
+                        source: 'warung_deleted',
+                        sourceId: customerId,
+                        date: new Date().toISOString().slice(0, 10),
+                        emptyQty: Number(inv.estimasiStokKosongWarung || 0),
+                        note: `Stok kosong ${warungName} dikembalikan ke pangkalan saat warung dihapus`
+                    });
+                }
+                localStorage.setItem(DB_KEY, JSON.stringify(normalizeDB(db)));
 
-            if (kosongKembali > 0) {
-                db.pangkalanStockAdjustments.push({
-                    id: 'adj_empty_' + Date.now(),
+                const payload = JSON.stringify({
+                    action: 'deleteCustomer',
+                    customerId: warung.id,
                     pangkalanId: pangId,
-                    source: 'warung_deleted',
-                    sourceId: customerId,
-                    date: new Date().toISOString().slice(0, 10),
-                    emptyQty: kosongKembali,
-                    note: `Stok kosong ${warungName} dikembalikan ke pangkalan saat warung dihapus`
+                    actor: db.currentUser ? {
+                        role: db.currentUser.role || null,
+                        id: db.currentUser.id || null,
+                        pangkalanId: db.currentUser.pangkalanId || null,
+                        name: db.currentUser.name || null
+                    } : null
                 });
+
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: payload
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 700));
+                const loaded = await loadDBFromCloud();
+                if (!loaded) throw new Error('Database pusat tidak dapat diverifikasi setelah penghapusan.');
+
+                const verifyDB = getDB();
+                const stillExists = (verifyDB.customers || []).some(c => String(c.id) === String(customerId));
+                if (stillExists) throw new Error('Warung masih tercatat di database pusat.');
+
+                closeModal();
+                showAlert('Warung Dihapus', `${warungName} berhasil dihapus permanen dari database pusat.`);
+                render();
+            } catch (error) {
+                console.error('Gagal menghapus warung:', error);
+                await loadDBFromCloud();
+                render();
+                showAlert('Gagal Menghapus', error.message || 'Penghapusan warung gagal diproses.', 'error');
             }
-
-            const isWarungRecord = (record) => {
-                const recordCustomerId = record.customerId ?? record.warungId ?? record.customer_id ?? record.warung_id;
-                const recordName = String(
-                    record.warungName ??
-                    record.customerName ??
-                    record.warung ??
-                    record.customer ??
-                    ''
-                ).trim();
-
-                return recordCustomerId === customerId ||
-                       (record.pangkalanId === pangId && recordName === warungName);
-            };
-
-            db.warungSales = (db.warungSales || []).filter(s => !isWarungRecord(s));
-            db.warungReports = (db.warungReports || []).filter(r => !isWarungRecord(r));
-            db.transactions = (db.transactions || []).filter(t => !isWarungRecord(t));
-
-            if (db.payments) {
-                db.payments = db.payments.filter(p => !isWarungRecord(p));
-            }
-            if (db.debts) {
-                db.debts = db.debts.filter(d => !isWarungRecord(d));
-            }
-            if (db.customerTransactions) {
-                db.customerTransactions = db.customerTransactions.filter(t => !isWarungRecord(t));
-            }
-
-            db.customers.splice(index, 1);
-
-            if (db.currentUser?.role === 'warung' && db.currentUser.id === customerId) {
-                db.currentUser = null;
-            }
-
-            saveDB(db);
-            closeModal();
-
-            showAlert(
-                'Warung Dihapus',
-                `${warungName} berhasil dihapus. ` +
-                `${isiKembali} tabung isi dan ${kosongKembali} tabung kosong di kembalikan ke stok pangkalan.`
-            );
-
-            render();
         }
-
 
         function openTransactionModal() {
             const db = getDB();
@@ -5991,7 +6103,9 @@ ${pangkalanName}
                 quotaMonthly: quota,
                 username: username,
                 password: password,
-                phone: '0812345678'
+                phone: '0812345678',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             });
 
             saveDB(db);
@@ -6616,10 +6730,15 @@ ${pangkalanName}
         }
 
         // Initialize App on load
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
+            applyTheme();
+            // Database online harus dimuat lebih dulu pada GitHub Pages.
+            // Preview/iframe tidak melakukan request eksternal.
+            if (!IS_EMBEDDED_PREVIEW) {
+                await loadDBFromCloud();
+            }
             applyTheme();
             render();
-            applyTheme();
         });
     </script>
 </body>
