@@ -1624,7 +1624,12 @@
 
         function getPangkalanInventory(pangkalanId) {
             const db = getDB();
-            const allocs = db.allocations.filter(a => a.pangkalanId === pangkalanId);
+            // Hanya alokasi aktif yang benar-benar menambah stok fisik pangkalan.
+            // Alokasi berstatus Dibatalkan tidak lagi dihitung sebagai stok pangkalan.
+            const allocs = db.allocations.filter(a =>
+                String(a.pangkalanId) === String(pangkalanId) &&
+                String(a.status || 'Terkirim').toLowerCase() !== 'dibatalkan'
+            );
             const trxs = db.transactions.filter(t => t.pangkalanId === pangkalanId);
             const returns = db.emptyReturnsToAgency.filter(r => r.pangkalanId === pangkalanId);
 
@@ -3685,45 +3690,71 @@
                 return;
             }
 
+            const isAllocationActive = (a) =>
+                String(a?.status || 'Terkirim').toLowerCase() !== 'dibatalkan';
+
+            const effectiveQty = (qty, status) =>
+                String(status || 'Terkirim').toLowerCase() === 'dibatalkan'
+                    ? 0
+                    : Math.max(0, Number(qty || 0));
+
             const totalTerjual = (db.transactions || [])
                 .filter(t => String(t.pangkalanId) === String(pId) && isActiveTransaction(t))
                 .reduce((sum, t) => sum + Number(t.qty3kg || 0), 0);
 
-            let oldTotal = 0;
-            let newTotal = 0;
+            let oldActiveTotal = 0;
+            let newActiveTotal = 0;
             const updates = [];
 
             for (const a of allocations) {
-                const oldQty = Number(a.isi3kg || 0);
+                const oldQty = Math.max(0, Number(a.isi3kg || 0));
+                const oldStatus = a.status || 'Terkirim';
+                const oldEffectiveQty = effectiveQty(oldQty, oldStatus);
+
                 const qtyInput = document.getElementById(`allocQty_${a.id}`);
                 const dateInput = document.getElementById(`allocDate_${a.id}`);
                 const statusInput = document.getElementById(`allocStatus_${a.id}`);
 
                 const newQty = Math.max(0, Number(qtyInput?.value || 0));
                 const newDate = dateInput?.value || a.date || new Date().toISOString().slice(0, 10);
-                const newStatus = statusInput?.value || a.status || 'Terkirim';
+                const newStatus = statusInput?.value || oldStatus;
+                const newEffectiveQty = effectiveQty(newQty, newStatus);
 
-                oldTotal += oldQty;
-                newTotal += newQty;
-                updates.push({ allocation: a, oldQty, newQty, newDate, newStatus });
+                oldActiveTotal += oldEffectiveQty;
+                newActiveTotal += newEffectiveQty;
+
+                updates.push({
+                    allocation: a,
+                    oldQty,
+                    oldStatus,
+                    oldEffectiveQty,
+                    newQty,
+                    newDate,
+                    newStatus,
+                    newEffectiveQty
+                });
             }
 
-            if (newTotal < totalTerjual) {
+            // Alokasi aktif tidak boleh lebih kecil dari stok yang sudah benar-benar
+            // keluar melalui transaksi aktif.
+            if (newActiveTotal < totalTerjual) {
                 showAlert(
                     'Alokasi Tidak Valid',
-                    `Total alokasi ${newTotal} tabung tidak boleh lebih kecil dari total transaksi aktif ${totalTerjual} tabung.`,
+                    `Alokasi aktif ${newActiveTotal} tabung tidak boleh lebih kecil dari total transaksi aktif ${totalTerjual} tabung.`,
                     'error'
                 );
                 return;
             }
 
-            const delta = newTotal - oldTotal;
+            // Selisih positif = menambah alokasi aktif ke pangkalan.
+            // Selisih negatif = mengurangi alokasi aktif; stok tersebut kembali ke gudang pusat.
+            const deltaAktif = newActiveTotal - oldActiveTotal;
             const stockPusat = Number(db.superAdminStock?.isi3kg || 0);
 
-            if (delta > stockPusat) {
+            if (deltaAktif > stockPusat) {
                 showAlert(
                     'Stok Gudang Tidak Cukup',
-                    `Tambahan alokasi ${delta} tabung melebihi stok gudang pusat ${stockPusat} tabung.`,
+                    `Tambahan alokasi ${deltaAktif} tabung melebihi stok gudang pusat ${stockPusat} tabung.`,
                     'error'
                 );
                 return;
@@ -3733,22 +3764,42 @@
                 db.superAdminStock = { isi3kg: 0, kosong3kg: 0 };
             }
 
+            const now = new Date().toISOString();
+
             updates.forEach(item => {
                 item.allocation.isi3kg = item.newQty;
                 item.allocation.date = item.newDate;
                 item.allocation.status = item.newStatus;
-                item.allocation.updatedAt = new Date().toISOString();
+                item.allocation.updatedAt = now;
             });
 
-            db.superAdminStock.isi3kg = Math.max(0, stockPusat - delta);
+            // Jika status menjadi Dibatalkan, alokasi tidak lagi dihitung sebagai
+            // stok fisik pangkalan dan kuantitas efektifnya dikembalikan ke gudang pusat.
+            // Jika status aktif / jumlah naik, stok pusat berkurang sesuai selisih.
+            db.superAdminStock.isi3kg = Math.max(0, stockPusat - deltaAktif);
+
             saveDB(db);
 
             closeModal();
             render();
-            showAlert(
-                'Alokasi Diperbarui',
-                `Alokasi ${pang.name} berhasil disimpan. Total alokasi sekarang ${newTotal} tabung.`
+
+            const statusCancelled = updates.filter(item =>
+                item.newStatus !== item.oldStatus &&
+                String(item.newStatus).toLowerCase() === 'dibatalkan'
             );
+            const restoredQty = updates.reduce((sum, item) =>
+                sum + Math.max(0, item.oldEffectiveQty - item.newEffectiveQty), 0
+            );
+
+            let pesan = `Alokasi ${pang.name} berhasil disimpan. Alokasi aktif sekarang ${newActiveTotal} tabung.`;
+            if (restoredQty > 0) {
+                pesan += ` ${restoredQty} tabung dikembalikan ke stok gudang pusat.`;
+            }
+            if (statusCancelled.length > 0) {
+                pesan += ' Alokasi yang dibatalkan tidak lagi dihitung sebagai stok fisik pangkalan.';
+            }
+
+            showAlert('Alokasi Diperbarui', pesan);
         }
 
         function openPangkalanHistoryModal(pId) {
