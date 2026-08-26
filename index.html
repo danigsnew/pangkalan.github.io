@@ -1720,6 +1720,12 @@
             return maxOutstanding;
         }
 
+        // Menentukan transaksi yang masih aktif untuk perhitungan stok/piutang.
+        // Transaksi yang sudah dibatalkan tidak ikut dihitung.
+        function isActiveTransaction(trx) {
+            return !!trx && !trx.deletedAt;
+        }
+
         function syncWarungReportFromTransactions(reportId, db) {
             const report = (db.warungReports || []).find(r => r.id === reportId);
             if (!report) return null;
@@ -2817,7 +2823,7 @@
                                                     <div class="flex justify-end items-center gap-2 flex-wrap">
                                                         <button
                                                             type="button"
-                                                            onclick="openEditTransactionModal('${t.id}')"
+                                                            onclick="window.openEditTransactionModal('${t.id}')"
                                                             title="Edit transaksi"
                                                             class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold rounded-lg text-[11px] transition">
                                                             <i class="fa-solid fa-pen mr-1"></i> Edit
@@ -5070,9 +5076,10 @@ ${pangkalanName}
                 return;
             }
 
-            const pangId = db.currentUser?.pangkalanId;
+            const pangId = String(db.currentUser?.pangkalanId || '');
+            const trxPangkalanId = String(trx.pangkalanId || '');
 
-            if (!pangId || trx.pangkalanId !== pangId) {
+            if (!pangId || trxPangkalanId !== pangId) {
                 showAlert(
                     'Akses Ditolak',
                     'Transaksi ini bukan milik pangkalan Anda.',
@@ -5541,10 +5548,10 @@ ${pangkalanName}
                 return;
             }
 
-            const pangId =
-                db.currentUser?.pangkalanId;
+            const pangId = String(db.currentUser?.pangkalanId || '');
+            const trxPangkalanId = String(trx.pangkalanId || '');
 
-            if (!pangId || trx.pangkalanId !== pangId) {
+            if (!pangId || trxPangkalanId !== pangId) {
                 showAlert(
                     'Akses Ditolak',
                     'Transaksi ini bukan milik pangkalan Anda.',
@@ -6805,6 +6812,10 @@ ${pangkalanName}
             applyTheme();
             render();
         });
+        // Pastikan handler tombol inline tetap tersedia sebagai global.
+        window.openEditTransactionModal = openEditTransactionModal;
+        window.submitEditTransaction = submitEditTransaction;
+
     </script>
 </body>
 </html>
