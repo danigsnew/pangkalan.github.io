@@ -4660,11 +4660,15 @@
         function openEditWarungModal(customerId) {
             const db = getDB();
             const pangId = db.currentUser?.pangkalanId;
-            const customer = db.customers.find(c =>
+            const warung = db.customers.find(c =>
                 c.id === customerId &&
-                c.pangkalanId === pangId
+                c.pangkalanId === pangId &&
+                c.type === 'warung'
             );
-            if (!warung) return;
+            if (!warung) {
+                showAlert('Gagal Membuka Edit', 'Data warung tidak ditemukan.', 'error');
+                return;
+            }
 
             showModal('Edit Warung', 'Perbarui data warung.', 'fa-pen-to-square', 'bg-amber-100 text-amber-600', `
                 <form onsubmit="submitEditWarung(event, '${warung.id}')" class="space-y-4">
