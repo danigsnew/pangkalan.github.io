@@ -2301,6 +2301,9 @@
                             <button onclick="openAddPangkalanModal()" class="px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl text-xs transition shadow-lg flex items-center gap-2">
                                 <i class="fa-solid fa-plus-circle"></i> Tambah Pangkalan
                             </button>
+                            <button onclick="confirmResetAllPangkalanData()" class="px-4 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-2xl text-xs transition shadow-lg flex items-center gap-2">
+                                <i class="fa-solid fa-broom"></i> Reset Data Pangkalan
+                            </button>
                             <button onclick="openSuperAdminStockModal()" class="px-4 py-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl text-xs font-bold transition flex items-center gap-2 backdrop-blur-md">
                                 <i class="fa-solid fa-boxes-stacked"></i> Atur Stok Gudang
                             </button>
@@ -3155,7 +3158,7 @@
             `);
         }
 
-        function submitAddPangkalan(e) {
+        async function submitAddPangkalan(e) {
             e.preventDefault();
             const db = getDB();
             const name = document.getElementById('pangName').value.trim();
@@ -3169,42 +3172,131 @@
             }
 
             if (!Array.isArray(db.pangalans)) db.pangalans = [];
-
             if (db.pangalans.some(p => String(p.username || '').toLowerCase() === username)) {
                 showAlert('Gagal Simpan', 'Username pangkalan sudah digunakan!', 'error');
                 return;
             }
 
-            let newId;
-            do {
-                newId = 'pang_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-            } while (db.pangalans.some(p => p.id === newId));
+            const actor = db.currentUser ? {
+                role: db.currentUser.role || null,
+                id: db.currentUser.id || null,
+                pangkalanId: db.currentUser.pangkalanId || null,
+                name: db.currentUser.name || null
+            } : null;
 
-            const newPangkalan = {
-                id: newId,
-                name,
-                address,
-                username,
-                password,
-                phone: '',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
+            try {
+                if (IS_EMBEDDED_PREVIEW) throw new Error('Pembuatan pangkalan tidak dapat dilakukan pada preview.');
 
-            db.pangalans.push(newPangkalan);
-            saveDB(db);
+                // Gunakan endpoint server khusus agar pembuatan akun benar-benar masuk database pusat.
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        action: 'createPangkalan',
+                        data: { name, address, username, password, phone: '' },
+                        actor
+                    })
+                });
 
-            // Verifikasi bahwa record benar-benar tersimpan sebelum UI diperbarui.
-            const verifyDB = getDB();
-            const savedPangkalan = verifyDB.pangalans.find(p => p.id === newId);
-            if (!savedPangkalan) {
-                showAlert('Gagal Simpan', 'Data pangkalan baru tidak berhasil tersimpan.', 'error');
-                return;
+                await new Promise(resolve => setTimeout(resolve, 700));
+                const loaded = await loadDBFromCloud();
+                if (!loaded) throw new Error('Database pusat tidak dapat diverifikasi setelah pembuatan pangkalan.');
+
+                const verifyDB = getDB();
+                const savedPangkalan = verifyDB.pangalans.find(p => String(p.username || '').toLowerCase() === username);
+                if (!savedPangkalan) {
+                    throw new Error('Pangkalan belum ditemukan di database pusat. Pembuatan dibatalkan.');
+                }
+
+                closeModal();
+                showAlert('Berhasil Ditambahkan', `Pangkalan "${savedPangkalan.name}" berhasil terdaftar dan tersimpan online.`);
+                render();
+            } catch (error) {
+                console.error('Gagal membuat pangkalan:', error);
+                await loadDBFromCloud();
+                render();
+                showAlert('Gagal Simpan', error.message || 'Pembuatan pangkalan gagal.', 'error');
             }
+        }
 
-            closeModal();
-            showAlert('Berhasil Ditambahkan', `Pangkalan "${name}" berhasil terdaftar dengan username ${username}.`);
-            render();
+        function confirmResetAllPangkalanData() {
+            const db = getDB();
+            const pangCount = Array.isArray(db.pangalans) ? db.pangalans.length : 0;
+            const customerCount = Array.isArray(db.customers) ? db.customers.length : 0;
+            showModal(
+                'Reset Seluruh Data Pangkalan',
+                'Hapus seluruh data operasional pangkalan dan mulai dari nol.',
+                'fa-broom',
+                'bg-rose-100 text-rose-600',
+                `
+                    <div class="space-y-4">
+                        <div class="p-4 bg-rose-50 rounded-2xl border border-rose-200 text-xs text-rose-900">
+                            <p class="font-extrabold mb-1">Tindakan ini permanen pada database online.</p>
+                            <p>Pangkalan: <strong>${pangCount}</strong> • Warung/Pelanggan: <strong>${customerCount}</strong></p>
+                            <p class="mt-1">Seluruh alokasi, transaksi, penjualan eceran, laporan, pembayaran, piutang, dan data turunan operasional akan dibersihkan.</p>
+                        </div>
+                        <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-900">
+                            <p class="font-bold">Yang dipertahankan:</p>
+                            <p>Akun Super Admin dan konfigurasi dasar database.</p>
+                        </div>
+                        <div class="pt-2 flex gap-3">
+                            <button type="button" onclick="closeModal()" class="w-1/2 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition">Batal</button>
+                            <button type="button" onclick="executeResetAllPangkalanData()" class="w-1/2 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-sm shadow-md transition">Ya, Reset Database</button>
+                        </div>
+                    </div>
+                `
+            );
+        }
+
+        async function executeResetAllPangkalanData() {
+            const db = getDB();
+            const actor = db.currentUser ? {
+                role: db.currentUser.role || null,
+                id: db.currentUser.id || null,
+                pangkalanId: db.currentUser.pangkalanId || null,
+                name: db.currentUser.name || null
+            } : null;
+
+            try {
+                if (IS_EMBEDDED_PREVIEW) throw new Error('Reset database tidak dapat dilakukan pada preview.');
+
+                // Hentikan antrean save browser agar tidak menimpa hasil reset.
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = null;
+                cloudSavePending = null;
+                for (let i = 0; i < 50 && cloudSaveInFlight; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-store',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'resetAllPangkalanData', actor })
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 900));
+                const loaded = await loadDBFromCloud();
+                if (!loaded) throw new Error('Database pusat tidak dapat diverifikasi setelah reset.');
+                const verifyDB = getDB();
+                const branchKeys = ['pangalans','customers','allocations','transactions','warungSales','warungReports','payments','debts','customerTransactions','emptyReturnsToAgency','emptyAgencyReceipts','pangkalanStockAdjustments','deletedCustomerIds'];
+                const remaining = branchKeys.reduce((sum, key) => sum + ((verifyDB[key] || []).length || 0), 0);
+                if (remaining !== 0) {
+                    throw new Error(`Reset belum bersih. Masih ada ${remaining} record operasional pada database pusat.`);
+                }
+
+                closeModal();
+                showAlert('Database Bersih', 'Seluruh data operasional pangkalan berhasil direset. Database siap dimulai dari nol.');
+                render();
+            } catch (error) {
+                console.error('Gagal reset database:', error);
+                await loadDBFromCloud();
+                render();
+                showAlert('Reset Gagal', error.message || 'Reset database gagal diproses.', 'error');
+            }
         }
 
         function openEditPangkalanModal(id) {
