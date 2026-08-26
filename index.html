@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem Manajemen Distribusi LPG 3Kg - Accurate Warung Inventory Logic</title>
+    <title>V8.10 - Sistem Manajemen Distribusi LPG 3Kg - Accurate Warung Inventory Logic</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -2425,7 +2425,7 @@
 
         function openFilteredWarungHistory() {
             if (!adminHistoryWarungFilter) {
-                showAlert('Pilih Warung', 'Silakan pilih warung terlebih dahulu.', 'error');
+                showAlert('Pilih Pelanggan', 'Silakan pilih pelanggan terlebih dahulu.', 'error');
                 return;
             }
             openWarungHistoryModal(adminHistoryWarungFilter);
@@ -2642,7 +2642,7 @@
                             <table class="w-full text-left text-sm">
                                 <thead class="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase font-semibold">
                                     <tr>
-                                        <th class="p-3.5">Warung</th>
+                                        <th class="p-3.5">Pelanggan</th>
                                         <th class="p-3.5">Kontak</th>
                                         <th class="p-3.5 text-emerald-700">Stok Isi</th>
                                         <th class="p-3.5 text-amber-700">Stok Kosong</th>
@@ -2699,20 +2699,21 @@
                                     Histori Transaksi Penjualan Pangkalan
                                 </h3>
                                 <p class="text-xs text-slate-500 mt-1">
-                                    Pilih warung untuk melihat seluruh histori transaksi secara terstruktur.
+                                    Pilih pelanggan untuk melihat seluruh histori transaksi secara terstruktur.
                                 </p>
                             </div>
 
+                            <!-- V8.10: histori admin mencakup Warung + Pelanggan Perorangan -->
                             <div class="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
                                 <div class="min-w-0 sm:min-w-[260px]">
                                     <label class="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">
-                                        Filter Warung
+                                        Filter Pelanggan
                                     </label>
                                     <select onchange="setAdminHistoryWarungFilter(this.value)"
                                         class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-200">
-                                        <option value="">Semua Warung</option>
-                                        ${myCustomers.filter(c => c.type === 'warung').map(c => `
-                                            <option value="${c.id}" ${adminHistoryWarungFilter === c.id ? 'selected' : ''}>${c.name}</option>
+                                        <option value="">Semua Pelanggan</option>
+                                        ${myCustomers.map(c => `
+                                            <option value="${c.id}" ${adminHistoryWarungFilter === c.id ? 'selected' : ''}>${c.name} (${c.type === 'perorangan' ? 'PERORANGAN' : 'WARUNG'})</option>
                                         `).join('')}
                                     </select>
                                 </div>
@@ -2732,7 +2733,7 @@
                             <table class="w-full min-w-[760px] border-separate border-spacing-0 text-sm">
                                 <thead>
                                     <tr class="bg-slate-50">
-                                        <th class="p-3.5 text-left border-y border-l border-slate-200 rounded-l-xl text-[11px] uppercase tracking-wide text-slate-500">Warung Dipilih</th>
+                                        <th class="p-3.5 text-left border-y border-l border-slate-200 rounded-l-xl text-[11px] uppercase tracking-wide text-slate-500">Pelanggan Dipilih</th>
                                         <th class="p-3.5 text-right border-y border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">Jumlah Transaksi</th>
                                         <th class="p-3.5 text-right border-y border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">Total Tagihan</th>
                                         <th class="p-3.5 text-right border-y border-slate-200 text-[11px] uppercase tracking-wide text-slate-500">Telah Dibayar</th>
@@ -2743,8 +2744,8 @@
                                     <tr class="bg-white">
                                         <td class="p-4 border-b border-l border-slate-200 rounded-bl-xl font-bold text-slate-800">
                                             ${adminHistoryWarungFilter
-                                                ? (myCustomers.find(c => c.id === adminHistoryWarungFilter)?.name || 'Warung')
-                                                : 'Semua Warung'}
+                                                ? (myCustomers.find(c => c.id === adminHistoryWarungFilter)?.name || 'Pelanggan')
+                                                : 'Semua Pelanggan'}
                                         </td>
                                         <td class="p-4 border-b border-slate-200 text-right font-bold text-slate-700">${trxs.length}</td>
                                         <td class="p-4 border-b border-slate-200 text-right font-bold text-slate-800">
@@ -2783,7 +2784,7 @@
                                         <tr>
                                             <td colspan="10" class="px-6 py-12 text-center text-slate-400">
                                                 <i class="fa-solid fa-inbox text-3xl mb-3 block text-slate-300"></i>
-                                                ${adminHistoryWarungFilter ? 'Belum ada histori untuk warung yang dipilih.' : 'Belum ada transaksi.'}
+                                                ${adminHistoryWarungFilter ? 'Belum ada histori untuk pelanggan yang dipilih.' : 'Belum ada transaksi.'}
                                             </td>
                                         </tr>
                                     ` : trxs.slice().reverse().map((t, index) => {
@@ -4087,10 +4088,9 @@
             const db = getDB();
             const pangId = db.currentUser?.pangkalanId;
 
-            const warung = db.customers.find(c =>
+            const customer = db.customers.find(c =>
                 c.id === customerId &&
-                c.pangkalanId === pangId &&
-                c.type === 'warung'
+                c.pangkalanId === pangId
             );
 
             const transactions = (db.transactions || [])
@@ -4104,12 +4104,13 @@
                     return dbb.localeCompare(da);
                 });
 
-            const warungName = warung?.name || transactions[0]?.customerName || 'Warung';
+            const customerName = customer?.name || transactions[0]?.customerName || 'Pelanggan';
+            const customerType = customer?.type === 'perorangan' ? 'Perorangan' : 'Warung';
 
             if (!transactions.length) {
                 showModal(
-                    `Histori Transaksi - ${warungName}`,
-                    'Detail histori transaksi warung',
+                    `Histori Transaksi - ${customerName}`,
+                    `Detail histori transaksi ${customerType.toLowerCase()}`,
                     'fa-receipt',
                     'bg-slate-100 text-slate-600',
                     `
@@ -4117,7 +4118,7 @@
                             <div class="history-toolbar">
                                 <div>
                                     <p class="font-bold text-slate-800">Belum ada transaksi</p>
-                                    <p class="text-xs text-slate-500 mt-1">Warung ini belum memiliki histori transaksi.</p>
+                                    <p class="text-xs text-slate-500 mt-1">Pelanggan ini belum memiliki histori transaksi.</p>
                                 </div>
                                 <button onclick="closeModal()" class="no-print px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs">
                                     Tutup
@@ -4168,7 +4169,7 @@
             }).join('');
 
             showModal(
-                `Histori Transaksi - ${warungName}`,
+                `Histori Transaksi - ${customerName}`,
                 'Detail lengkap seluruh transaksi warung',
                 'fa-receipt',
                 'bg-emerald-100 text-emerald-600',
@@ -4177,9 +4178,9 @@
 
                         <div class="history-toolbar no-print">
                             <div>
-                                <p class="font-bold text-slate-800">Detail Histori Warung</p>
+                                <p class="font-bold text-slate-800">Detail Histori Pelanggan</p>
                                 <p class="text-xs text-slate-500 mt-1">
-                                    ${transactions.length} transaksi tercatat untuk ${warungName}.
+                                    ${transactions.length} transaksi tercatat untuk ${customerName}.
                                 </p>
                             </div>
                             <div class="flex gap-2">
@@ -4197,7 +4198,7 @@
                         <table class="history-summary">
                             <thead>
                                 <tr>
-                                    <th>Warung</th>
+                                    <th>Pelanggan</th>
                                     <th>Transaksi</th>
                                     <th>Total Gas Isi</th>
                                     <th>Total Kosong</th>
@@ -4208,7 +4209,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td class="font-bold text-slate-800">${warungName}</td>
+                                    <td class="font-bold text-slate-800">${customerName}</td>
                                     <td class="text-center font-bold">${transactions.length}</td>
                                     <td class="text-center font-bold text-emerald-700">${totalIsi} Unit</td>
                                     <td class="text-center font-bold text-amber-700">${totalKosong} Unit</td>
@@ -4268,7 +4269,7 @@
             const printRoot = document.createElement('div');
             printRoot.id = 'warungHistoryPrintRoot';
 
-            const title = document.getElementById('modalTitle')?.innerText || 'Histori Transaksi Warung';
+            const title = document.getElementById('modalTitle')?.innerText || 'Histori Transaksi Pelanggan';
             const subtitle = document.getElementById('modalSubtitle')?.innerText || '';
 
             printRoot.innerHTML = `
@@ -4659,10 +4660,9 @@
         function openEditWarungModal(customerId) {
             const db = getDB();
             const pangId = db.currentUser?.pangkalanId;
-            const warung = db.customers.find(c =>
+            const customer = db.customers.find(c =>
                 c.id === customerId &&
-                c.pangkalanId === pangId &&
-                c.type === 'warung'
+                c.pangkalanId === pangId
             );
             if (!warung) return;
 
@@ -4794,7 +4794,7 @@
                         sourceId: customerId,
                         date: new Date().toISOString().slice(0, 10),
                         emptyQty: Number(inv.estimasiStokKosongWarung || 0),
-                        note: `Stok kosong ${warungName} dikembalikan ke pangkalan saat warung dihapus`
+                        note: `Stok kosong ${customerName} dikembalikan ke pangkalan saat warung dihapus`
                     });
                 }
                 localStorage.setItem(DB_KEY, JSON.stringify(normalizeDB(db)));
@@ -4828,7 +4828,7 @@
                 if (stillExists) throw new Error('Warung masih tercatat di database pusat.');
 
                 closeModal();
-                showAlert('Warung Dihapus', `${warungName} berhasil dihapus permanen dari database pusat.`);
+                showAlert('Warung Dihapus', `${customerName} berhasil dihapus permanen dari database pusat.`);
                 render();
             } catch (error) {
                 console.error('Gagal menghapus warung:', error);
