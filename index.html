@@ -3355,14 +3355,49 @@
                     })
                 });
 
-                await new Promise(resolve => setTimeout(resolve, 700));
-                const loaded = await loadDBFromCloud();
-                if (!loaded) throw new Error('Database pusat tidak dapat diverifikasi setelah pembuatan pangkalan.');
-
-                const verifyDB = getDB();
-                const savedPangkalan = verifyDB.pangalans.find(p => String(p.username || '').toLowerCase() === username);
+                // ============================================================
+                // VERIFIKASI PEMBUATAN PANGKALAN
+                // Backend sudah menerima create.
+                // Beri waktu database pusat selesai ditulis dan baca ulang.
+                // ============================================================
+                
+                let savedPangkalan = null;
+                
+                for (let attempt = 1; attempt <= 6; attempt++) {
+                
+                    await new Promise(resolve => setTimeout(resolve, 700));
+                
+                    // Jangan memanggil loadDB ketika proses load sebelumnya
+                    // masih berjalan.
+                    if (cloudDBLoading) {
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                        continue;
+                    }
+                
+                    const loaded = await loadDBFromCloud();
+                
+                    if (!loaded) {
+                        continue;
+                    }
+                
+                    const verifyDB = getDB();
+                
+                    savedPangkalan = (verifyDB.pangalans || []).find(
+                        p =>
+                            String(p.username || '')
+                                .trim()
+                                .toLowerCase() === username
+                    );
+                
+                    if (savedPangkalan) {
+                        break;
+                    }
+                }
+                
                 if (!savedPangkalan) {
-                    throw new Error('Pangkalan belum ditemukan di database pusat. Pembuatan dibatalkan.');
+                    throw new Error(
+                        'Pangkalan belum dapat diverifikasi dari database pusat. Silakan coba lagi.'
+                    );
                 }
 
                 closeModal();
