@@ -1431,7 +1431,8 @@
                 'debts',
                 'customerTransactions',
                 'emptyAgencyReceipts',
-                'deletedCustomerIds'
+                'deletedCustomerIds',
+                'warungStockReturns'
             ];
 
             arrayKeys.forEach(key => {
@@ -1648,79 +1649,132 @@
 
         function getPangkalanInventory(pangkalanId) {
             const db = getDB();
-            // Hanya alokasi aktif yang benar-benar menambah stok fisik pangkalan.
-            // Alokasi berstatus Dibatalkan tidak lagi dihitung sebagai stok pangkalan.
-            const allocs = db.allocations.filter(a =>
+
+            const allocs = (db.allocations || []).filter(a =>
                 String(a.pangkalanId) === String(pangkalanId) &&
                 String(a.status || 'Terkirim').toLowerCase() !== 'dibatalkan'
             );
-            const trxs = db.transactions.filter(t => t.pangkalanId === pangkalanId);
-            const returns = db.emptyReturnsToAgency.filter(r => r.pangkalanId === pangkalanId);
 
-           const totalIsiAlokasi = allocs.reduce(
+            const trxs = (db.transactions || []).filter(
+                t => String(t.pangkalanId) === String(pangkalanId) && !t.deletedAt
+            );
+
+            const returns = (db.emptyReturnsToAgency || []).filter(
+                r => String(r.pangkalanId) === String(pangkalanId)
+            );
+
+            /*
+             * STOK ISI GUDANG — BASELINE V8.10
+             *
+             * Alokasi adalah sumber stok awal.
+             * Transaksi kirim isi mengurangi stok gudang.
+             *
+             * PENTING:
+             * pangkalanStockAdjustments.isiQty TIDAK dipakai di sini.
+             * Field lama tersebut pernah membuat stok bertambah 1 unit.
+             * Pengembalian isi dari Warung memakai ledger baru
+             * warungStockReturns sehingga tidak mengganggu baseline lama.
+             */
+            const totalIsiAlokasi = allocs.reduce(
                 (s, a) => s + Number(a.isi3kg || 0),
                 0
             );
-            
-            const totalIsiPenyesuaian = (db.pangkalanStockAdjustments || [])
-                .filter(a =>
-                    String(a.pangkalanId) === String(pangkalanId)
-                )
-                .reduce(
-                    (s, a) => s + Number(a.isiQty || 0),
-                    0
-                );
-            
-            const totalIsiMasuk = totalIsiAlokasi;
-            
+
             const totalIsiTerjual = trxs.reduce(
-                (s, t) => s + Number(t.qty3kg || 0),
+                (s, t) => s + Math.max(0, Number(t.qty3kg || 0)),
                 0
             );
 
-            // Stok gudang pangkalan = total kiriman/alokasi dari Super Admin
-            // dikurangi seluruh transaksi penjualan yang masih tercatat.
-            // Saat warung dihapus, transaksi warung ikut dihapus sehingga
-            // stok otomatis kembali ke posisi sebelum kiriman ke warung tersebut.
-            const stokIsiGudang = Math.max(0, totalIsiMasuk - totalIsiTerjual);
+            const totalIsiKembaliDariWarung = (db.warungStockReturns || [])
+                .filter(r =>
+                    String(r.pangkalanId) === String(pangkalanId) &&
+                    !r.deletedAt
+                )
+                .reduce(
+                    (s, r) => s + Math.max(0, Number(r.qtyIsi || 0)),
+                    0
+                );
 
-            const totalKosongDiterima = trxs.reduce((s, t) => s + Number(t.qtyKosongDiambil || 0), 0);
-            const totalKosongDikembalikan = returns.reduce((s, r) => s + Number(r.qtyKosong || 0), 0);
+            const totalIsiMasuk =
+                totalIsiAlokasi + totalIsiKembaliDariWarung;
 
-            // Penerimaan kosong terbaru dari warung tetap ditampilkan terpisah
-            // agar setoran sebelumnya ke agen tidak membuat penerimaan baru
-            // terlihat hilang pada dashboard.
+            const stokIsiGudang = Math.max(
+                0,
+                totalIsiMasuk - totalIsiTerjual
+            );
+
+            const totalKosongDiterima = trxs.reduce(
+                (s, t) => s + Math.max(0, Number(t.qtyKosongDiambil || 0)),
+                0
+            );
+
+            const totalKosongDikembalikan = returns.reduce(
+                (s, r) => s + Math.max(0, Number(r.qtyKosong || 0)),
+                0
+            );
+
+            const totalKosongPenyesuaian = (db.pangkalanStockAdjustments || [])
+                .filter(a => String(a.pangkalanId) === String(pangkalanId))
+                .reduce(
+                    (s, a) => s + Number(a.emptyQty || 0),
+                    0
+                );
+
+            const stokKosongFisik = Math.max(
+                0,
+                totalKosongDiterima +
+                totalKosongPenyesuaian -
+                totalKosongDikembalikan
+            );
+
             const transaksiKosongTerbaru = trxs
                 .filter(t => Number(t.qtyKosongDiambil || 0) > 0)
                 .slice()
-                .sort((a, b) => String(b.createdAt || b.date || '').localeCompare(String(a.createdAt || a.date || '')));
+                .sort((a, b) =>
+                    String(b.createdAt || b.date || '')
+                        .localeCompare(String(a.createdAt || a.date || ''))
+                );
 
             const penerimaanKosongTerbaru = transaksiKosongTerbaru.length
                 ? Number(transaksiKosongTerbaru[0].qtyKosongDiambil || 0)
                 : 0;
+
             const tanggalPenerimaanKosongTerbaru = transaksiKosongTerbaru.length
                 ? (transaksiKosongTerbaru[0].date || '-')
                 : '-';
 
-            // Stok kosong pangkalan adalah stok kosong yang diterima dari transaksi,
-            // dikurangi yang sudah disetor ke agen, ditambah stok kosong yang
-            // dikembalikan ke pangkalan ketika histori warung dihapus.
-            const totalKosongPenyesuaian = (db.pangkalanStockAdjustments || [])
-                .filter(a => a.pangkalanId === pangkalanId)
-                .reduce((s, a) => s + Number(a.emptyQty || 0), 0);
-
-            const stokKosongFisik = Math.max(
-                0,
-                totalKosongDiterima + totalKosongPenyesuaian - totalKosongDikembalikan
+            const totalOmset = trxs.reduce(
+                (s, t) => s + Math.max(0, Number(t.totalHarga || 0)),
+                0
             );
 
-            const totalOmset = trxs.reduce((s, t) => s + Number(t.totalHarga || 0), 0);
-            const totalTerbayar = trxs.reduce((s, t) => s + Number(t.bayar || 0), 0);
-            const totalSisaPiutang = Math.max(0, totalOmset - totalTerbayar);
-            const totalProfitMargin = trxs.reduce((s, t) => s + (Number(t.qty3kg || 0) * (Number(t.hargaJual || 0) - Number(t.modalPerTabung || HET_PEMERINTAH))), 0);
+            const totalTerbayar = trxs.reduce(
+                (s, t) => s + Math.max(0, Number(t.bayar || 0)),
+                0
+            );
+
+            const totalSisaPiutang = Math.max(
+                0,
+                totalOmset - totalTerbayar
+            );
+
+            const totalProfitMargin = trxs.reduce(
+                (s, t) =>
+                    s +
+                    (
+                        Number(t.qty3kg || 0) *
+                        (
+                            Number(t.hargaJual || 0) -
+                            Number(t.modalPerTabung || HET_PEMERINTAH)
+                        )
+                    ),
+                0
+            );
 
             return {
                 totalIsiMasuk,
+                totalIsiAlokasi,
+                totalIsiKembaliDariWarung,
                 totalIsiTerjual,
                 stokIsiGudang,
                 stokKosongFisik,
@@ -1735,6 +1789,107 @@
                 totalProfitMargin
             };
         }
+
+        function getCustomerDebtSummary(customerId, excludeTransactionId = null) {
+            const db = getDB();
+
+            const transactions = (db.transactions || []).filter(t =>
+                String(t.customerId) === String(customerId) &&
+                !t.deletedAt &&
+                String(t.id) !== String(excludeTransactionId || '')
+            );
+
+            const totalTagihan = transactions.reduce(
+                (s, t) => s + Math.max(0, Number(t.totalHarga || 0)),
+                0
+            );
+
+            const totalSudahDibayar = transactions.reduce(
+                (s, t) => s + Math.max(0, Number(t.bayar || 0)),
+                0
+            );
+
+            return {
+                totalTagihan,
+                totalSudahDibayar,
+                sisaTagihan: Math.max(0, totalTagihan - totalSudahDibayar)
+            };
+        }
+
+        function getWarungStockReturnTotal(customerId) {
+            const db = getDB();
+
+            return (db.warungStockReturns || [])
+                .filter(r =>
+                    String(r.customerId) === String(customerId) &&
+                    !r.deletedAt
+                )
+                .reduce(
+                    (s, r) => s + Math.max(0, Number(r.qtyIsi || 0)),
+                    0
+                );
+        }
+
+        function returnWarungIsiToPangkalan(customerId, qty) {
+            const db = getDB();
+            const pangId = String(db.currentUser?.pangkalanId || '');
+
+            const warung = (db.customers || []).find(c =>
+                String(c.id) === String(customerId) &&
+                String(c.pangkalanId) === pangId &&
+                c.type === 'warung'
+            );
+
+            if (!warung) {
+                showAlert('Gagal', 'Warung tidak ditemukan.', 'error');
+                return false;
+            }
+
+            const inv = getWarungInventory(customerId);
+            const jumlah = Math.max(0, Number(qty || 0));
+
+            if (jumlah <= 0) {
+                showAlert('Gagal', 'Jumlah tabung isi harus lebih dari 0.', 'error');
+                return false;
+            }
+
+            if (jumlah > Number(inv.estimasiStokIsiWarung || 0)) {
+                showAlert(
+                    'Gagal',
+                    `Stok isi ${warung.name} hanya ${Number(inv.estimasiStokIsiWarung || 0)} unit.`,
+                    'error'
+                );
+                return false;
+            }
+
+            if (!db.warungStockReturns) db.warungStockReturns = [];
+
+            const now = new Date().toISOString();
+
+            db.warungStockReturns.push({
+                id: 'wreturn_' + Date.now(),
+                pangkalanId: pangId,
+                customerId: warung.id,
+                customerName: warung.name,
+                qtyIsi: jumlah,
+                qtyKosong: 0,
+                date: now.slice(0, 10),
+                createdAt: now,
+                source: 'admin_return_warung_to_pangkalan',
+                note: `Pengembalian ${jumlah} tabung isi dari ${warung.name} ke gudang pangkalan`
+            });
+
+            saveDB(db);
+
+            showAlert(
+                'Stok Dikembalikan',
+                `${jumlah} tabung isi dari ${warung.name} sudah dikembalikan ke gudang pangkalan.`
+            );
+
+            render();
+            return true;
+        }
+
 
         function getCustomerMonthlyUsage(customerId) {
             const db = getDB();
@@ -1831,53 +1986,24 @@
                     !s.deletedAt
             );
 
-            /*
-             * ============================================================
-             * LEDGER FISIK WARUNG — ATURAN DASAR UNTUK SEMUA WARUNG
-             *
-             * 1) qty3kg pada transaksi Admin = tabung isi masuk ke Warung.
-             * 2) Penjualan eceran = tabung isi berubah menjadi kosong.
-             * 3) Transaksi hasil Laporan Warung (reportId) yang mengambil
-             *    kosong TIDAK mengurangi stok isi; itu adalah pengambilan
-             *    kosong dari siklus penjualan yang sudah terjadi.
-             * 4) Transaksi lama/manual yang memiliki qtyKosongDiambil,
-             *    tetapi tidak punya reportId dan bukan tarik_kosong,
-             *    dianggap sebagai histori penukaran lama. Penarikan kosong
-             *    tersebut dipakai untuk merekonsiliasi stok isi lama yang
-             *    belum memiliki catatan penjualan eceran terpisah.
-             * 5) Laporan pasokan tidak mengubah stok. Laporan hanya menjadi
-             *    permintaan yang menunggu diproses Admin.
-             * ============================================================
-             */
-
             const totalIsiDiterima = trxs.reduce(
-                (sum, t) =>
-                    sum + Math.max(0, Number(t.qty3kg || 0)),
+                (sum, t) => sum + Math.max(0, Number(t.qty3kg || 0)),
                 0
             );
 
             const totalPenjualanEceran = sales.reduce(
-                (sum, s) =>
-                    sum + Math.max(0, Number(s.qty || 0)),
+                (sum, s) => sum + Math.max(0, Number(s.qty || 0)),
                 0
             );
 
             const totalKosongDitarikPangkalan = trxs.reduce(
-                (sum, t) =>
-                    sum + Math.max(0, Number(t.qtyKosongDiambil || 0)),
+                (sum, t) => sum + Math.max(0, Number(t.qtyKosongDiambil || 0)),
                 0
             );
 
-            // Draw lama/manual yang tidak berasal dari laporan Warung.
-            // Hanya mode penukaran lama yang dipakai sebagai rekonsiliasi
-            // stok isi. "tarik_kosong" tidak pernah mengurangi stok isi.
             const totalKosongLegacy = trxs.reduce(
                 (sum, t) => {
-                    const qty = Math.max(
-                        0,
-                        Number(t.qtyKosongDiambil || 0)
-                    );
-
+                    const qty = Math.max(0, Number(t.qtyKosongDiambil || 0));
                     if (qty <= 0) return sum;
 
                     const mode = String(
@@ -1890,46 +2016,25 @@
                         mode === 'tarik_kosong' ||
                         String(t.jenisTransaksi || '').toLowerCase() === 'tarik_kosong';
 
-                    const hasReport =
-                        Boolean(t.reportId);
+                    const hasReport = Boolean(t.reportId);
 
-                    if (isTarikKosong || hasReport) {
-                        return sum;
-                    }
-
+                    if (isTarikKosong || hasReport) return sum;
                     return sum + qty;
                 },
                 0
             );
 
-            /*
-             * Stok isi:
-             * seluruh isi yang masuk
-             * - penjualan eceran yang benar-benar mengubah isi menjadi kosong
-             * - rekonsiliasi histori penukaran lama yang tidak punya reportId.
-             *
-             * Penarikan kosong dari laporan baru tidak mengurangi isi.
-             */
+            const totalIsiDikembalikanKePangkalan =
+                getWarungStockReturnTotal(customerId);
+
             const stokIsi = Math.max(
                 0,
                 totalIsiDiterima -
                 totalPenjualanEceran -
-                totalKosongLegacy
+                totalKosongLegacy -
+                totalIsiDikembalikanKePangkalan
             );
 
-            /*
-             * Stok kosong aktif:
-             * seluruh tabung kosong yang terbentuk dari penjualan eceran
-             * dikurangi seluruh tabung kosong yang benar-benar ditarik Admin.
-             *
-             * PENTING:
-             * Semua transaksi Admin yang memiliki qtyKosongDiambil adalah
-             * pergerakan fisik kosong, termasuk transaksi legacy/manual.
-             * Karena itu semuanya harus ikut mengurangi stok kosong.
-             * Dengan aturan ini, ketika satu transaksi Admin dihapus,
-             * dampak penarikan kosong dari transaksi tersebut juga otomatis
-             * hilang dari ledger Warung.
-             */
             const totalKosongDitarikAktif = trxs.reduce(
                 (sum, t) =>
                     sum + Math.max(
@@ -1941,8 +2046,7 @@
 
             const stokKosong = Math.max(
                 0,
-                totalPenjualanEceran -
-                totalKosongDitarikAktif
+                totalPenjualanEceran - totalKosongDitarikAktif
             );
 
             const totalTagihan = trxs.reduce(
@@ -1962,11 +2066,11 @@
                 totalTagihan - totalSudahDibayar
             );
 
-            const totalTabungFisik =
-                stokIsi + stokKosong;
+            const totalTabungFisik = stokIsi + stokKosong;
 
             return {
                 totalIsiDiterima,
+                totalIsiDikembalikanKePangkalan,
                 totalKosongDitarikPangkalan,
                 totalKosongDitarikAktif,
                 totalKosongLegacy,
@@ -2617,7 +2721,7 @@
                                 <h3 class="text-lg font-bold text-amber-900 flex items-center gap-2">
                                     <i class="fa-solid fa-bell text-amber-600"></i> Permintaan Penukaran / Pasokan dari Warung
                                 </h3>
-                                <p class="text-xs text-amber-700 mt-1">Laporan warung yang memerlukan pengambilan tabung kosong & pengiriman pasokan gas isi.</p>
+                                <p class="text-xs text-amber-700 mt-1">Permintaan lama warung tetap ditampilkan sebagai referensi; transaksi fisik dapat dibuat langsung oleh Admin.</p>
                             </div>
                         </div>
                         <div class="p-0 overflow-x-auto">
@@ -2699,7 +2803,10 @@
                                                     </span>
                                                 </td>
                                                 <td class="p-3.5 text-right">
-                                                    <div class="flex justify-end gap-2">
+                                                    <div class="flex justify-end gap-2">                                                        <button onclick="openAdminWarungMovementModal('${c.id}')" title="Kelola Pergerakan Stok"
+                                                            class="w-9 h-9 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center">
+                                                            <i class="fa-solid fa-arrows-rotate"></i>
+                                                        </button>
                                                         <button onclick="openEditWarungModal('${c.id}')" title="Edit Warung"
                                                             class="w-9 h-9 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 flex items-center justify-center">
                                                             <i class="fa-solid fa-pen"></i>
@@ -4460,15 +4567,19 @@
 
 
         function calcTLTotal() {
+            const mode = document.querySelector('input[name="tlMode"]:checked')?.value || 'tukar';
             const qty = Math.max(0, Number(document.getElementById('tlKirimIsi')?.value || 0));
             const harga = Math.max(0, Number(document.getElementById('tlHarga')?.value || 0));
-            const total = qty * harga;
+            const total = (mode === 'tarik_kosong') ? 0 : qty * harga;
+
             const display = document.getElementById('tlTotalDisplay');
+            const bayarInput = document.getElementById('tlBayar');
+
             if (display) display.value = 'Rp ' + total.toLocaleString('id-ID');
 
-            const lunasRadio = document.querySelector('input[name="tlStatus"][value="lunas"]');
-            const bayarInput = document.getElementById('tlBayar');
-            if (bayarInput && lunasRadio?.checked) bayarInput.value = total;
+            if (bayarInput && document.querySelector('input[name="tlStatus"][value="lunas"]')?.checked) {
+                bayarInput.value = total;
+            }
         }
 
         function handleTLStatusChange() {
@@ -4484,29 +4595,28 @@
             const isiInput = document.getElementById('tlKirimIsi');
             const kosongInput = document.getElementById('tlTarikKosong');
             const help = document.getElementById('tlIsiHelp');
-            const hargaInput = document.getElementById('tlHarga');
             const bayarInput = document.getElementById('tlBayar');
             const totalDisplay = document.getElementById('tlTotalDisplay');
 
             if (!isiInput || !kosongInput) return;
 
-            const tarikKosong = mode === 'tarik_kosong';
-            const kirimIsi = mode === 'kirim_isi';
-
-            if (tarikKosong) {
+            if (mode === 'tarik_kosong') {
                 isiInput.value = 0;
                 isiInput.readOnly = true;
                 kosongInput.readOnly = false;
                 kosongInput.disabled = false;
-                if (bayarInput) bayarInput.value = 0;
+                if (help) help.textContent = 'Mode ini hanya menarik tabung kosong. Pembayaran tetap dapat dicatat sebagai pembayaran piutang.';
                 if (totalDisplay) totalDisplay.value = 'Rp 0';
-                if (help) help.textContent = 'Mode ini hanya menarik tabung kosong. Tidak ada pengiriman isi.';
-            } else if (kirimIsi) {
+                if (bayarInput) {
+                    bayarInput.disabled = false;
+                    bayarInput.removeAttribute('max');
+                }
+            } else if (mode === 'kirim_isi') {
                 isiInput.readOnly = false;
                 kosongInput.value = 0;
                 kosongInput.readOnly = true;
                 kosongInput.disabled = true;
-                if (help) help.textContent = 'Mode ini hanya mengirim tabung isi. Tidak ada tabung kosong yang ditarik.';
+                if (help) help.textContent = 'Mode ini hanya mengirim tabung isi.';
                 calcTLTotal();
             } else {
                 isiInput.readOnly = false;
@@ -4517,11 +4627,12 @@
             }
 
             [isiInput, kosongInput].forEach(el => {
-                if (el.readOnly || el.disabled) el.classList.add('bg-slate-100', 'text-slate-500');
-                else el.classList.remove('bg-slate-100', 'text-slate-500');
+                if (el.readOnly || el.disabled) {
+                    el.classList.add('bg-slate-100', 'text-slate-500');
+                } else {
+                    el.classList.remove('bg-slate-100', 'text-slate-500');
+                }
             });
-
-            if (hargaInput) hargaInput.disabled = false;
         }
 
         function submitTindakLanjut(e, reportId) {
@@ -4531,24 +4642,22 @@
             const report = (db.warungReports || []).find(r => r.id === reportId);
             if (!report) return;
 
-            const pangId = db.currentUser?.pangkalanId;
+            const pangId = String(db.currentUser?.pangkalanId || '');
             const mode = document.querySelector('input[name="tlMode"]:checked')?.value || 'tukar';
 
             const isiInput = document.getElementById('tlKirimIsi');
             const kosongInput = document.getElementById('tlTarikKosong');
             const bayarInput = document.getElementById('tlBayar');
 
-            const requestedKosong = Math.max(0, Number(report.kosong3kg || 0));
-            const alreadyProcessedKosong = Math.max(0, Number(report.processedQtyKosong || 0));
-            const remainingRequestedKosong = Math.max(0, requestedKosong - alreadyProcessedKosong);
+            const qtyIsi = mode === 'tarik_kosong'
+                ? 0
+                : Math.max(0, Number(isiInput?.value || 0));
 
             const qtyKosong = mode === 'kirim_isi'
                 ? 0
                 : Math.max(0, Number(kosongInput?.value || 0));
 
-            const qtyIsi = mode === 'tarik_kosong'
-                ? 0
-                : Math.max(0, Number(isiInput?.value || 0));
+            const bayar = Math.max(0, Number(bayarInput?.value || 0));
 
             if (!pangId) {
                 showAlert('Proses Gagal', 'Pangkalan aktif tidak ditemukan.', 'error');
@@ -4565,16 +4674,8 @@
                 return;
             }
 
-            if (mode !== 'kirim_isi' && qtyKosong > remainingRequestedKosong) {
-                showAlert(
-                    'Proses Gagal',
-                    `Sisa tabung kosong pada permintaan ini hanya ${remainingRequestedKosong} unit.`,
-                    'error'
-                );
-                return;
-            }
-
             const stokWarung = getWarungInventory(report.customerId);
+
             if (qtyKosong > Number(stokWarung.estimasiStokKosongWarung || 0)) {
                 showAlert(
                     'Proses Gagal',
@@ -4584,57 +4685,65 @@
                 return;
             }
 
-            const firstTrx = (db.transactions || [])
-                .filter(t => String(t.customerId) === String(report.customerId) && Number(t.qty3kg || 0) > 0)
-                .sort((a, b) => String(a.createdAt || a.date || '').localeCompare(String(b.createdAt || b.date || '')))[0];
-
-            const harga = firstTrx
-                ? Number(
-                    firstTrx.hargaJualPerTabung ||
-                    firstTrx.hargaJual ||
-                    firstTrx.hargaPerTabung ||
-                    (Number(firstTrx.totalHarga || 0) / Math.max(1, Number(firstTrx.qty3kg || 0))) ||
-                    HARGA_JUAL_STANDAR
-                )
-                : HARGA_JUAL_STANDAR;
-
-            const total = qtyIsi * harga;
-            const bayar = Math.max(0, Number(bayarInput?.value || 0));
-
-            if (bayar > total) {
-                showAlert('Transaksi Gagal', 'Pembayaran tidak boleh melebihi total tagihan.', 'error');
+            if (qtyIsi > Number(getPangkalanInventory(pangId).stokIsiGudang || 0)) {
+                showAlert(
+                    'Proses Gagal',
+                    `Stok isi gudang hanya ${Number(getPangkalanInventory(pangId).stokIsiGudang || 0)} unit.`,
+                    'error'
+                );
                 return;
             }
 
+            const firstTrx = (db.transactions || [])
+                .filter(t =>
+                    String(t.customerId) === String(report.customerId) &&
+                    Number(t.qty3kg || 0) > 0 &&
+                    !t.deletedAt
+                )
+                .sort((a, b) =>
+                    String(a.createdAt || a.date || '')
+                        .localeCompare(String(b.createdAt || b.date || ''))
+                )[0];
+
+            const harga = firstTrx
+                ? Number(firstTrx.hargaJualPerTabung || firstTrx.hargaJual || HARGA_JUAL_STANDAR)
+                : HARGA_JUAL_STANDAR;
+
+            const total = qtyIsi * harga;
+
             if (mode === 'tarik_kosong') {
-                // Tidak ada penjualan isi pada transaksi tarik kosong.
+                const debt = getCustomerDebtSummary(report.customerId);
+                if (bayar > debt.sisaTagihan) {
+                    showAlert(
+                        'Pembayaran Tidak Valid',
+                        `Sisa tagihan warung Rp ${debt.sisaTagihan.toLocaleString('id-ID')}.`,
+                        'error'
+                    );
+                    return;
+                }
+            } else if (bayar > total) {
+                showAlert('Pembayaran Tidak Valid', 'Pembayaran tidak boleh melebihi total tagihan.', 'error');
+                return;
             }
 
-            const jenisTransaksi = mode === 'kirim_isi'
-                ? 'kirim_isi'
-                : mode === 'tarik_kosong'
-                    ? 'tarik_kosong'
-                    : 'penukaran';
-
-            const catatan = mode === 'kirim_isi'
-                ? 'Kirim Tabung Isi Saja - Tanpa Penarikan Tabung Kosong'
-                : mode === 'tarik_kosong'
-                    ? 'Hanya Tarik Tabung Kosong - Tanpa Pengiriman Tabung Isi'
-                    : 'Penukaran Tabung Kosong & Pengiriman Tabung Isi';
-
-            const trxId = 'trx_' + Date.now();
+            const now = new Date().toISOString();
 
             db.transactions.push({
-                id: trxId,
+                id: 'trx_' + Date.now(),
                 pangkalanId: pangId,
-                date: new Date().toISOString().slice(0, 10),
-                createdAt: new Date().toISOString(),
+                date: now.slice(0, 10),
+                createdAt: now,
                 customerId: report.customerId,
                 customerName: report.warungName,
                 customerType: 'warung',
                 reportId: report.id,
-                source: 'warung_report',
-                jenisTransaksi,
+                source: 'warung_report_legacy_flow',
+                jenisTransaksi:
+                    mode === 'kirim_isi'
+                        ? 'kirim_isi'
+                        : mode === 'tarik_kosong'
+                            ? 'tarik_kosong'
+                            : 'penukaran',
                 modePenukaran: mode,
                 qty3kg: qtyIsi,
                 qtyKosongDiambil: qtyKosong,
@@ -4642,30 +4751,30 @@
                 hargaJual: mode === 'tarik_kosong' ? 0 : harga,
                 hargaJualPerTabung: mode === 'tarik_kosong' ? 0 : harga,
                 totalHarga: total,
-                bayar: mode === 'tarik_kosong' ? 0 : bayar,
-                statusBayar: mode === 'tarik_kosong'
-                    ? 'lunas'
-                    : (bayar >= total ? 'lunas' : 'belum_lunas'),
-                catatan
+                totalHpp: mode === 'tarik_kosong' ? 0 : qtyIsi * HET_PEMERINTAH,
+                profit: mode === 'tarik_kosong' ? 0 : total - (qtyIsi * HET_PEMERINTAH),
+                bayar,
+                statusBayar:
+                    mode === 'tarik_kosong'
+                        ? (bayar > 0 ? 'pembayaran_piutang' : 'lunas')
+                        : (bayar >= total ? 'lunas' : 'belum_lunas'),
+                catatan:
+                    mode === 'tarik_kosong'
+                        ? 'Hanya Tarik Tabung Kosong - Pembayaran piutang tetap diperbolehkan'
+                        : mode === 'kirim_isi'
+                            ? 'Kirim Tabung Isi Saja'
+                            : 'Penukaran Tabung Kosong & Pengiriman Tabung Isi'
             });
 
             syncWarungReportFromTransactions(report.id, db);
-
             saveDB(db);
             closeModal();
 
-            const reportRemaining = Math.max(
-                0,
-                Number(report.kosong3kg || 0) - Number(report.processedQtyKosong || 0)
-            );
-
             showAlert(
                 'Berhasil',
-                mode === 'kirim_isi'
-                    ? `${qtyIsi} tabung isi berhasil dikirim. ${reportRemaining} tabung kosong masih tercatat sebagai permintaan aktif.`
-                    : mode === 'tarik_kosong'
-                        ? `${qtyKosong} tabung kosong berhasil ditarik dari Warung.`
-                        : `${qtyIsi} tabung isi dikirim dan ${qtyKosong} tabung kosong ditarik.`
+                mode === 'tarik_kosong'
+                    ? `${qtyKosong} tabung kosong berhasil ditarik dan pembayaran Rp ${bayar.toLocaleString('id-ID')} dicatat.`
+                    : `${qtyIsi} tabung isi berhasil diproses${mode === 'tukar' ? ` dan ${qtyKosong} tabung kosong ditarik` : ''}.`
             );
 
             render();
@@ -4685,29 +4794,431 @@
                 return;
             }
 
-            showModal('Edit Warung', 'Perbarui data warung.', 'fa-pen-to-square', 'bg-amber-100 text-amber-600', `
-                <form onsubmit="submitEditWarung(event, '${warung.id}')" class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Warung</label>
-                        <input type="text" id="editWarungName" value="${String(warung.name || '').replace(/"/g, '&quot;')}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+            const inv = getWarungInventory(customerId);
+
+            showModal('Edit Warung', 'Perbarui data warung dan kelola stok isi.', 'fa-pen-to-square', 'bg-amber-100 text-amber-600', `
+                <div class="space-y-4">
+                    <div class="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                        <div class="flex justify-between items-center gap-3">
+                            <div>
+                                <p class="text-[10px] uppercase font-bold text-emerald-700">Stok Isi Warung Saat Ini</p>
+                                <p class="text-2xl font-extrabold text-emerald-800">${Number(inv.estimasiStokIsiWarung || 0)} Unit</p>
+                            </div>
+                            <button type="button"
+                                onclick="openAdminWarungMovementModal('${warung.id}', 'return_isi')"
+                                class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold">
+                                <i class="fa-solid fa-warehouse mr-1"></i> Kembalikan Isi
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-emerald-700 mt-2">
+                            Pengembalian dicatat sebagai ledger fisik dan stok gudang bertambah dengan jumlah yang sama.
+                        </p>
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Username</label>
-                        <input type="text" id="editWarungUsername" value="${String(warung.username || '').replace(/"/g, '&quot;')}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+
+                    <form onsubmit="submitEditWarung(event, '${warung.id}')" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Warung</label>
+                            <input type="text" id="editWarungName" value="${String(warung.name || '').replace(/"/g, '&quot;')}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Username</label>
+                            <input type="text" id="editWarungUsername" value="${String(warung.username || '').replace(/"/g, '&quot;')}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Password</label>
+                            <input type="text" id="editWarungPassword" value="${String(warung.password || '123').replace(/"/g, '&quot;')}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">No. WhatsApp</label>
+                            <input type="text" id="editWarungPhone" value="${String(warung.phone || '').replace(/"/g, '&quot;')}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+                        </div>
+                        <button type="submit" class="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm shadow-md">
+                            Simpan Perubahan
+                        </button>
+                    </form>
+                </div>
+            `);
+        }
+
+        function openAdminWarungMovementModal(customerId, presetMode = 'tukar') {
+            const db = getDB();
+            const pangId = String(db.currentUser?.pangkalanId || '');
+
+            const warung = (db.customers || []).find(c =>
+                String(c.id) === String(customerId) &&
+                String(c.pangkalanId) === pangId &&
+                c.type === 'warung'
+            );
+
+            if (!warung) {
+                showAlert('Gagal', 'Warung tidak ditemukan.', 'error');
+                return;
+            }
+
+            const inv = getWarungInventory(warung.id);
+            const pangInv = getPangkalanInventory(pangId);
+            const debt = getCustomerDebtSummary(warung.id);
+
+            const safeMode = ['tukar', 'kirim_isi', 'tarik_kosong', 'return_isi'].includes(presetMode)
+                ? presetMode
+                : 'tukar';
+
+            const firstTrx = (db.transactions || [])
+                .filter(t =>
+                    String(t.customerId) === String(warung.id) &&
+                    Number(t.qty3kg || 0) > 0 &&
+                    !t.deletedAt
+                )
+                .sort((a, b) =>
+                    String(a.createdAt || a.date || '')
+                        .localeCompare(String(b.createdAt || b.date || ''))
+                )[0];
+
+            const harga = firstTrx
+                ? Number(
+                    firstTrx.hargaJualPerTabung ||
+                    firstTrx.hargaJual ||
+                    HARGA_JUAL_STANDAR
+                )
+                : HARGA_JUAL_STANDAR;
+
+            showModal(
+                'Kelola Stok Warung',
+                `${warung.name} • Kirim, tukar, tarik kosong, atau kembalikan isi`,
+                'fa-arrows-rotate',
+                'bg-emerald-100 text-emerald-700',
+                `
+                <form onsubmit="submitAdminWarungMovement(event, '${warung.id}')" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                            <p class="text-[10px] uppercase font-bold text-emerald-700">Isi Warung</p>
+                            <p class="text-xl font-extrabold text-emerald-800">${Number(inv.estimasiStokIsiWarung || 0)} Unit</p>
+                        </div>
+                        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                            <p class="text-[10px] uppercase font-bold text-slate-500">Isi Gudang</p>
+                            <p class="text-xl font-extrabold text-slate-800">${Number(pangInv.stokIsiGudang || 0)} Unit</p>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Password</label>
-                        <input type="text" id="editWarungPassword" value="${String(warung.password || '123').replace(/"/g, '&quot;')}" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer">
+                            <input type="radio" name="awmMode" value="tukar" ${safeMode === 'tukar' ? 'checked' : ''} onchange="toggleAdminWarungMovementMode()" class="accent-emerald-600">
+                            <span class="text-xs font-bold text-emerald-700">Tukar + Kirim Isi</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer">
+                            <input type="radio" name="awmMode" value="kirim_isi" ${safeMode === 'kirim_isi' ? 'checked' : ''} onchange="toggleAdminWarungMovementMode()" class="accent-blue-600">
+                            <span class="text-xs font-bold text-blue-700">Kirim Isi Saja</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer">
+                            <input type="radio" name="awmMode" value="tarik_kosong" ${safeMode === 'tarik_kosong' ? 'checked' : ''} onchange="toggleAdminWarungMovementMode()" class="accent-amber-600">
+                            <span class="text-xs font-bold text-amber-700">Hanya Tarik Kosong</span>
+                        </label>
+                        <label class="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer">
+                            <input type="radio" name="awmMode" value="return_isi" ${safeMode === 'return_isi' ? 'checked' : ''} onchange="toggleAdminWarungMovementMode()" class="accent-indigo-600">
+                            <span class="text-xs font-bold text-indigo-700">Kembalikan Isi</span>
+                        </label>
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">No. WhatsApp</label>
-                        <input type="text" id="editWarungPhone" value="${String(warung.phone || '').replace(/"/g, '&quot;')}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div id="awmIsiBox" class="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
+                            <label class="block text-[11px] font-bold text-emerald-800 uppercase mb-2">Tabung Isi</label>
+                            <input type="number" id="awmIsi" min="0" value="${safeMode === 'return_isi' ? Math.min(Number(inv.estimasiStokIsiWarung || 0), 1) : 1}"
+                                oninput="calcAdminWarungMovementTotal()"
+                                class="w-full px-3 py-2 bg-white border border-emerald-200 rounded-xl text-sm font-bold text-emerald-900">
+                            <p id="awmIsiHelp" class="text-[10px] text-emerald-700 mt-1">Jumlah isi yang dikirim ke warung.</p>
+                        </div>
+
+                        <div id="awmKosongBox" class="bg-amber-50/60 p-4 rounded-2xl border border-amber-100">
+                            <label class="block text-[11px] font-bold text-amber-800 uppercase mb-2">Tabung Kosong Ditarik</label>
+                            <input type="number" id="awmKosong" min="0" value="${safeMode === 'kirim_isi' || safeMode === 'return_isi' ? 0 : 0}"
+                                oninput="calcAdminWarungMovementTotal()"
+                                class="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-sm font-bold text-amber-900">
+                            <p id="awmKosongHelp" class="text-[10px] text-amber-700 mt-1">Jumlah kosong yang benar-benar ditarik.</p>
+                        </div>
                     </div>
-                    <button type="submit" class="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm shadow-md">
-                        Simpan Perubahan
+
+                    <div id="awmReturnInfo" class="hidden p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-[10px] text-indigo-700">
+                        Pengembalian isi akan mengurangi stok fisik warung dan menambah stok isi gudang dengan jumlah yang sama.
+                    </div>
+
+                    <div id="awmPaymentBox" class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <span class="text-[10px] uppercase font-bold text-slate-500">Total Tagihan Warung</span>
+                                <p id="awmTotalDebt" class="text-base font-extrabold text-slate-800">Rp ${debt.totalTagihan.toLocaleString('id-ID')}</p>
+                            </div>
+                            <div>
+                                <span class="text-[10px] uppercase font-bold text-slate-500">Sisa Sebelum Pembayaran</span>
+                                <p id="awmDebtRemaining" class="text-base font-extrabold text-rose-600">Rp ${debt.sisaTagihan.toLocaleString('id-ID')}</p>
+                            </div>
+                        </div>
+                        <label class="block text-xs font-semibold text-slate-600">Pembayaran Diterima (Rp)</label>
+                        <input type="number" id="awmBayar" min="0" value="0" oninput="calcAdminWarungMovementTotal()"
+                            class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-emerald-700">
+                        <p class="text-[10px] text-slate-500">Pembayaran boleh dicatat saat tarik kosong untuk mengurangi sisa tagihan warung.</p>
+                    </div>
+
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-500">Tagihan Transaksi Baru</span>
+                            <strong id="awmTransactionTotal" class="text-slate-800">Rp ${safeMode === 'tarik_kosong' || safeMode === 'return_isi' ? '0' : harga.toLocaleString('id-ID')}</strong>
+                        </div>
+                        <div class="flex justify-between text-xs mt-2">
+                            <span class="text-slate-500">Sisa Piutang Setelah Pembayaran</span>
+                            <strong id="awmTransactionRemaining" class="text-rose-700">Rp ${debt.sisaTagihan.toLocaleString('id-ID')}</strong>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow-md">
+                        <i class="fa-solid fa-floppy-disk mr-1"></i> Simpan Pergerakan Stok
                     </button>
                 </form>
-            `);
+                `
+            );
+
+            window.currentAdminWarungMovementCustomerId = warung.id;
+            window.currentAdminWarungMovementHarga = harga;
+            toggleAdminWarungMovementMode();
+        }
+
+        function calcAdminWarungMovementTotal() {
+            const mode = document.querySelector('input[name="awmMode"]:checked')?.value || 'tukar';
+            const qtyIsi = Math.max(0, Number(document.getElementById('awmIsi')?.value || 0));
+            const harga = Math.max(0, Number(window.currentAdminWarungMovementHarga || HARGA_JUAL_STANDAR));
+            const bayar = Math.max(0, Number(document.getElementById('awmBayar')?.value || 0));
+
+            const customerId = window.currentAdminWarungMovementCustomerId;
+            const debt = customerId ? getCustomerDebtSummary(customerId) : { totalTagihan: 0, totalSudahDibayar: 0, sisaTagihan: 0 };
+
+            const transactionTotal =
+                (mode === 'tukar' || mode === 'kirim_isi')
+                    ? qtyIsi * harga
+                    : 0;
+
+            const debtRemaining = Math.max(
+                0,
+                debt.sisaTagihan - bayar + transactionTotal
+            );
+
+            const totalEl = document.getElementById('awmTransactionTotal');
+            const remainEl = document.getElementById('awmTransactionRemaining');
+
+            if (totalEl) {
+                totalEl.textContent = `Rp ${transactionTotal.toLocaleString('id-ID')}`;
+            }
+
+            if (remainEl) {
+                remainEl.textContent = `Rp ${debtRemaining.toLocaleString('id-ID')}`;
+                remainEl.className =
+                    debtRemaining > 0
+                        ? 'text-rose-700'
+                        : 'text-emerald-700';
+            }
+        }
+
+        function toggleAdminWarungMovementMode() {
+            const mode = document.querySelector('input[name="awmMode"]:checked')?.value || 'tukar';
+            const isiInput = document.getElementById('awmIsi');
+            const kosongInput = document.getElementById('awmKosong');
+            const isiHelp = document.getElementById('awmIsiHelp');
+            const kosongHelp = document.getElementById('awmKosongHelp');
+            const returnInfo = document.getElementById('awmReturnInfo');
+            const paymentBox = document.getElementById('awmPaymentBox');
+
+            if (!isiInput || !kosongInput) return;
+
+            if (mode === 'return_isi') {
+                isiInput.readOnly = false;
+                kosongInput.value = 0;
+                kosongInput.readOnly = true;
+                if (isiHelp) isiHelp.textContent = 'Jumlah isi yang dikembalikan dari warung ke gudang.';
+                if (kosongHelp) kosongHelp.textContent = 'Tidak ada tabung kosong yang ditarik.';
+                if (returnInfo) returnInfo.classList.remove('hidden');
+                if (paymentBox) paymentBox.classList.add('hidden');
+            } else if (mode === 'tarik_kosong') {
+                isiInput.value = 0;
+                isiInput.readOnly = true;
+                kosongInput.readOnly = false;
+                if (isiHelp) isiHelp.textContent = 'Tidak ada tabung isi yang dikirim.';
+                if (kosongHelp) kosongHelp.textContent = 'Jumlah kosong yang benar-benar ditarik dari warung.';
+                if (returnInfo) returnInfo.classList.add('hidden');
+                if (paymentBox) paymentBox.classList.remove('hidden');
+            } else if (mode === 'kirim_isi') {
+                isiInput.readOnly = false;
+                kosongInput.value = 0;
+                kosongInput.readOnly = true;
+                if (isiHelp) isiHelp.textContent = 'Jumlah isi yang dikirim ke warung.';
+                if (kosongHelp) kosongHelp.textContent = 'Tidak ada tabung kosong yang ditarik.';
+                if (returnInfo) returnInfo.classList.add('hidden');
+                if (paymentBox) paymentBox.classList.remove('hidden');
+            } else {
+                isiInput.readOnly = false;
+                kosongInput.readOnly = false;
+                if (isiHelp) isiHelp.textContent = 'Jumlah isi yang dikirim ke warung.';
+                if (kosongHelp) kosongHelp.textContent = 'Jumlah kosong yang ditarik dari warung.';
+                if (returnInfo) returnInfo.classList.add('hidden');
+                if (paymentBox) paymentBox.classList.remove('hidden');
+            }
+
+            [isiInput, kosongInput].forEach(el => {
+                if (el.readOnly) {
+                    el.classList.add('bg-slate-100', 'text-slate-500');
+                } else {
+                    el.classList.remove('bg-slate-100', 'text-slate-500');
+                }
+            });
+
+            calcAdminWarungMovementTotal();
+        }
+
+        function submitAdminWarungMovement(e, customerId) {
+            e.preventDefault();
+
+            const db = getDB();
+            const pangId = String(db.currentUser?.pangkalanId || '');
+            const warung = (db.customers || []).find(c =>
+                String(c.id) === String(customerId) &&
+                String(c.pangkalanId) === pangId &&
+                c.type === 'warung'
+            );
+
+            if (!warung) {
+                showAlert('Gagal', 'Warung tidak ditemukan.', 'error');
+                return;
+            }
+
+            const mode = document.querySelector('input[name="awmMode"]:checked')?.value || 'tukar';
+            const qtyIsi = Math.max(0, Number(document.getElementById('awmIsi')?.value || 0));
+            const qtyKosong = Math.max(0, Number(document.getElementById('awmKosong')?.value || 0));
+            const bayar = Math.max(0, Number(document.getElementById('awmBayar')?.value || 0));
+            const harga = Math.max(0, Number(window.currentAdminWarungMovementHarga || HARGA_JUAL_STANDAR));
+
+            if (mode === 'return_isi') {
+                if (qtyIsi <= 0) {
+                    showAlert('Gagal', 'Jumlah isi yang dikembalikan harus lebih dari 0.', 'error');
+                    return;
+                }
+                returnWarungIsiToPangkalan(customerId, qtyIsi);
+                closeModal();
+                return;
+            }
+
+            if (mode === 'tarik_kosong' && qtyKosong <= 0) {
+                showAlert('Gagal', 'Jumlah tabung kosong yang ditarik harus lebih dari 0.', 'error');
+                return;
+            }
+
+            if ((mode === 'kirim_isi' || mode === 'tukar') && qtyIsi <= 0) {
+                showAlert('Gagal', 'Jumlah tabung isi harus lebih dari 0.', 'error');
+                return;
+            }
+
+            if (mode === 'kirim_isi' && qtyKosong !== 0) {
+                showAlert('Gagal', 'Kirim Isi Saja tidak boleh menarik tabung kosong.', 'error');
+                return;
+            }
+
+            if (mode === 'tukar' && qtyKosong <= 0) {
+                showAlert('Gagal', 'Tukar + Kirim Isi harus menarik tabung kosong.', 'error');
+                return;
+            }
+
+            const inv = getWarungInventory(customerId);
+            if (qtyKosong > Number(inv.estimasiStokKosongWarung || 0)) {
+                showAlert(
+                    'Stok Kosong Tidak Cukup',
+                    `Stok kosong ${warung.name} hanya ${Number(inv.estimasiStokKosongWarung || 0)} unit.`,
+                    'error'
+                );
+                return;
+            }
+
+            const pangInv = getPangkalanInventory(pangId);
+            if (qtyIsi > Number(pangInv.stokIsiGudang || 0)) {
+                showAlert(
+                    'Stok Gudang Tidak Cukup',
+                    `Stok isi gudang saat ini ${Number(pangInv.stokIsiGudang || 0)} unit.`,
+                    'error'
+                );
+                return;
+            }
+
+            const debt = getCustomerDebtSummary(customerId);
+
+            /*
+             * Pembayaran pada tarik kosong boleh dipakai untuk melunasi
+             * piutang warung yang sudah ada. Untuk kirim/tukar, pembayaran
+             * dibatasi oleh total tagihan transaksi baru.
+             */
+            const transactionTotal =
+                (mode === 'kirim_isi' || mode === 'tukar')
+                    ? qtyIsi * harga
+                    : 0;
+
+            if (mode !== 'tarik_kosong' && bayar > transactionTotal) {
+                showAlert('Pembayaran Tidak Valid', 'Pembayaran tidak boleh melebihi tagihan transaksi baru.', 'error');
+                return;
+            }
+
+            if (mode === 'tarik_kosong' && bayar > debt.sisaTagihan) {
+                showAlert(
+                    'Pembayaran Tidak Valid',
+                    `Sisa tagihan warung saat ini Rp ${debt.sisaTagihan.toLocaleString('id-ID')}.`,
+                    'error'
+                );
+                return;
+            }
+
+            const now = new Date().toISOString();
+            const trxId = 'trx_' + Date.now();
+
+            db.transactions.push({
+                id: trxId,
+                pangkalanId: pangId,
+                date: now.slice(0, 10),
+                createdAt: now,
+                customerId: warung.id,
+                customerName: warung.name,
+                customerType: warung.type,
+                source: 'admin_direct_movement',
+                jenisTransaksi: mode === 'tarik_kosong' ? 'tarik_kosong' : 'penukaran',
+                modePenukaran: mode,
+                qty3kg: mode === 'tarik_kosong' ? 0 : qtyIsi,
+                qtyKosongDiambil: qtyKosong,
+                modalPerTabung: mode === 'tarik_kosong' ? 0 : HET_PEMERINTAH,
+                hargaJual: mode === 'tarik_kosong' ? 0 : harga,
+                hargaJualPerTabung: mode === 'tarik_kosong' ? 0 : harga,
+                totalHpp: mode === 'tarik_kosong' ? 0 : qtyIsi * HET_PEMERINTAH,
+                profit: mode === 'tarik_kosong' ? 0 : transactionTotal - (qtyIsi * HET_PEMERINTAH),
+                totalHarga: transactionTotal,
+                bayar,
+                statusBayar: transactionTotal > 0
+                    ? (bayar >= transactionTotal ? 'lunas' : 'belum_lunas')
+                    : (bayar > 0 ? 'pembayaran_piutang' : 'lunas'),
+                catatan:
+                    mode === 'tarik_kosong'
+                        ? 'Hanya Tarik Tabung Kosong - Transaksi langsung Admin, tanpa Laporan Warung'
+                        : mode === 'kirim_isi'
+                            ? 'Kirim Tabung Isi Saja - Transaksi langsung Admin, tanpa Laporan Warung'
+                            : 'Tukar + Kirim Isi - Transaksi langsung Admin, tanpa Laporan Warung'
+            });
+
+            saveDB(db);
+            closeModal();
+
+            if (mode === 'tarik_kosong') {
+                showAlert(
+                    'Berhasil',
+                    `${qtyKosong} tabung kosong ${warung.name} berhasil ditarik. Pembayaran Rp ${bayar.toLocaleString('id-ID')} dicatat ke piutang warung.`
+                );
+            } else {
+                showAlert(
+                    'Berhasil',
+                    `${qtyIsi} tabung isi berhasil dikirim ke ${warung.name}${mode === 'tukar' ? ` dan ${qtyKosong} tabung kosong ditarik` : ''}.`
+                );
+            }
+
+            render();
         }
 
         function submitEditWarung(e, customerId) {
@@ -4890,7 +5401,7 @@
                 emptyInput.min = '0';
                 emptyInput.value = '0';
                 if (emptyLabel) emptyLabel.innerText = 'Jumlah Tabung Kosong Ditarik';
-                if (helper) helper.innerText = 'Untuk Warung, penarikan kosong diproses melalui Laporan Pasokan Warung.';
+                if (helper) helper.innerText = 'Untuk Warung, Admin dapat langsung menarik tabung kosong tanpa menunggu Laporan Warung.';
             }
         }
 
@@ -5068,190 +5579,110 @@
             const custId = document.getElementById('trxCustId')?.value || '';
             const cust = (db.customers || []).find(c => String(c.id) === String(custId));
 
-            if (!pangId) {
-                showAlert('Transaksi Gagal', 'Pangkalan aktif tidak ditemukan.', 'error');
+            if (!pangId || !cust) {
+                showAlert('Transaksi Gagal', 'Pangkalan atau pelanggan belum dipilih.', 'error');
                 return;
             }
 
-            if (!cust) {
-                showAlert('Transaksi Gagal', 'Pelanggan/warung belum dipilih.', 'error');
-                return;
-            }
-
-            const qtyIsi = Math.max(
-                0,
-                Number(document.getElementById('trxQty')?.value || 0)
-            );
-
-            const qtyKosong = Math.max(
-                0,
-                Number(document.getElementById('trxQtyKosong')?.value || 0)
-            );
-
-            /*
-             * V8.10.3 — TRANSAKSI FISIK FLEKSIBEL
-             *
-             * 1. Admin BOLEH mencatat kirim isi walaupun stok isi pangkalan
-             *    saat ini 0. Stok tidak lagi menjadi penghalang transaksi.
-             * 2. Admin BOLEH langsung menarik tabung kosong dari Warung.
-             * 3. Tarik kosong saja = qty isi 0, qty kosong > 0, pembayaran 0.
-             * 4. Tidak ada lagi kewajiban menunggu Laporan Warung.
-             *
-             * Catatan:
-             * Transaksi tetap menjadi ledger utama. Tidak ada angka stok
-             * terpisah yang ditulis secara manual di sini.
-             */
+            const qtyIsi = Math.max(0, Number(document.getElementById('trxQty')?.value || 0));
+            const qtyKosong = Math.max(0, Number(document.getElementById('trxQtyKosong')?.value || 0));
+            const hpp = Math.max(0, Number(document.getElementById('trxHpp')?.value || HET_PEMERINTAH));
+            const hargaJual = Math.max(0, Number(document.getElementById('trxHargaJual')?.value || HARGA_JUAL_STANDAR));
 
             if (qtyIsi <= 0 && qtyKosong <= 0) {
-                showAlert(
-                    'Transaksi Gagal',
-                    'Masukkan jumlah tabung isi atau jumlah tabung kosong yang akan ditarik.',
-                    'error'
-                );
+                showAlert('Transaksi Gagal', 'Masukkan jumlah tabung isi atau jumlah tabung kosong yang akan ditarik.', 'error');
                 return;
             }
 
-            // Jika Admin menarik kosong langsung dari Warung,
-            // jumlah kosong tidak boleh melebihi stok kosong aktual Warung.
             if (qtyKosong > 0) {
                 const stokWarung = getWarungInventory(cust.id);
-                const stokKosongWarung = Number(
-                    stokWarung?.estimasiStokKosongWarung || 0
-                );
-
-                if (qtyKosong > stokKosongWarung) {
+                if (qtyKosong > Number(stokWarung.estimasiStokKosongWarung || 0)) {
                     showAlert(
                         'Stok Kosong Tidak Mencukupi',
-                        `Stok kosong ${cust.name} saat ini ${stokKosongWarung} unit.`,
+                        `Stok kosong ${cust.name} saat ini ${Number(stokWarung.estimasiStokKosongWarung || 0)} unit.`,
                         'error'
                     );
                     return;
                 }
             }
 
-            const hpp = Math.max(
-                0,
-                Number(document.getElementById('trxHpp')?.value || HET_PEMERINTAH)
-            );
-
-            const hargaJual = Math.max(
-                0,
-                Number(document.getElementById('trxHargaJual')?.value || HARGA_JUAL_STANDAR)
-            );
-
-            // Tarik kosong saja bukan penjualan, sehingga total dan pembayaran = 0.
             const isTarikKosongSaja = qtyIsi <= 0 && qtyKosong > 0;
-
-            const totalHpp = isTarikKosongSaja ? 0 : qtyIsi * hpp;
             const total = isTarikKosongSaja ? 0 : qtyIsi * hargaJual;
-            const profit = total - totalHpp;
+            const totalHpp = isTarikKosongSaja ? 0 : qtyIsi * hpp;
+            const paymentMode = document.getElementById('trxPaymentMode')?.value || 'deferred';
 
-            const paymentMode =
-                document.getElementById('trxPaymentMode')?.value || 'deferred';
+            let bayar =
+                paymentMode === 'full'
+                    ? total
+                    : Math.max(0, Number(document.getElementById('trxBayar')?.value || 0));
 
-            let bayar = isTarikKosongSaja
-                ? 0
-                : (
-                    paymentMode === 'full'
-                        ? total
-                        : Number(document.getElementById('trxBayar')?.value || 0)
-                );
-
-            if (bayar < 0) {
-                showAlert(
-                    'Pembayaran Gagal',
-                    'Jumlah pembayaran tidak boleh kurang dari Rp 0.',
-                    'error'
-                );
-                return;
-            }
-
-            if (bayar > total) {
-                showAlert(
-                    'Pembayaran Gagal',
-                    'Jumlah pembayaran tidak boleh melebihi total tagihan.',
-                    'error'
-                );
+            if (isTarikKosongSaja) {
+                const debt = getCustomerDebtSummary(cust.id);
+                if (bayar > debt.sisaTagihan) {
+                    showAlert(
+                        'Pembayaran Tidak Valid',
+                        `Pembayaran maksimal untuk piutang ${cust.name} adalah Rp ${debt.sisaTagihan.toLocaleString('id-ID')}.`,
+                        'error'
+                    );
+                    return;
+                }
+            } else if (bayar > total) {
+                showAlert('Pembayaran Gagal', 'Jumlah pembayaran tidak boleh melebihi total tagihan.', 'error');
                 return;
             }
 
             if (!isTarikKosongSaja && paymentMode === 'partial' && bayar >= total) {
-                showAlert(
-                    'Pembayaran Gagal',
-                    'Untuk Bayar Sebagian Dulu, jumlah pembayaran harus kurang dari total tagihan.',
-                    'error'
-                );
+                showAlert('Pembayaran Gagal', 'Untuk Bayar Sebagian Dulu, jumlah pembayaran harus kurang dari total tagihan.', 'error');
                 return;
             }
 
-            if (!isTarikKosongSaja && paymentMode === 'deferred' && bayar !== 0) {
-                showAlert(
-                    'Pembayaran Gagal',
-                    'Pilihan Bayar Nanti harus dicatat dengan pembayaran Rp 0.',
-                    'error'
-                );
-                return;
+            if (!isTarikKosongSaja && paymentMode === 'deferred') {
+                bayar = 0;
             }
 
-            const jenisTransaksi = isTarikKosongSaja
-                ? 'tarik_kosong'
-                : 'kirim_isi';
-
-            const modePenukaran = isTarikKosongSaja
-                ? 'tarik_kosong'
-                : 'kirim_isi';
-
-            const catatan = isTarikKosongSaja
-                ? 'Penarikan Tabung Kosong Langsung oleh Admin - Tanpa Pengiriman Isi'
-                : (
-                    qtyKosong > 0
-                        ? 'Pengiriman Tabung Isi Langsung oleh Admin'
-                        : 'Pengiriman Tabung Isi Langsung oleh Admin - Tanpa Penarikan Kosong'
-                );
+            const now = new Date().toISOString();
 
             db.transactions.push({
                 id: 'trx_' + Date.now(),
                 pangkalanId: pangId,
-                date: new Date().toISOString().slice(0, 10),
-                createdAt: new Date().toISOString(),
+                date: now.slice(0, 10),
+                createdAt: now,
                 customerId: cust.id,
                 customerName: cust.name,
                 customerType: cust.type,
-                jenisTransaksi,
-                modePenukaran,
+                source: 'admin_direct_movement',
+                jenisTransaksi: isTarikKosongSaja ? 'tarik_kosong' : 'kirim_isi',
+                modePenukaran: isTarikKosongSaja ? 'tarik_kosong' : 'kirim_isi',
                 qty3kg: isTarikKosongSaja ? 0 : qtyIsi,
                 qtyKosongDiambil: qtyKosong,
                 modalPerTabung: isTarikKosongSaja ? 0 : hpp,
                 hargaJual: isTarikKosongSaja ? 0 : hargaJual,
                 hargaJualPerTabung: isTarikKosongSaja ? 0 : hargaJual,
                 totalHpp,
-                profit,
+                profit: isTarikKosongSaja ? 0 : total - totalHpp,
                 totalHarga: total,
                 bayar,
-                statusBayar: isTarikKosongSaja
-                    ? 'lunas'
-                    : (bayar >= total ? 'lunas' : 'belum_lunas'),
-                catatan
+                statusBayar:
+                    isTarikKosongSaja
+                        ? (bayar > 0 ? 'pembayaran_piutang' : 'lunas')
+                        : (bayar >= total ? 'lunas' : 'belum_lunas'),
+                catatan:
+                    isTarikKosongSaja
+                        ? 'Hanya Tarik Tabung Kosong - Transaksi langsung Admin, tanpa Laporan Warung'
+                        : qtyKosong > 0
+                            ? 'Kirim Tabung Isi + Tarik Kosong - Transaksi langsung Admin'
+                            : 'Kirim Tabung Isi Saja - Transaksi langsung Admin'
             });
 
             saveDB(db);
             closeModal();
 
-            if (isTarikKosongSaja) {
-                showAlert(
-                    'Tabung Kosong Berhasil Ditarik',
-                    `${qtyKosong} tabung kosong dari ${cust.name} berhasil dicatat. Pembayaran Rp 0.`
-                );
-            } else {
-                const sisa = Math.max(0, total - bayar);
-
-                showAlert(
-                    'Transaksi Berhasil',
-                    sisa > 0
-                        ? `Penjualan ${qtyIsi} tabung ke ${cust.name} tercatat. Dibayar Rp ${bayar.toLocaleString('id-ID')}, sisa Rp ${sisa.toLocaleString('id-ID')}.`
-                        : `Penjualan ${qtyIsi} tabung ke ${cust.name} tercatat dan sudah LUNAS.`
-                );
-            }
+            showAlert(
+                'Transaksi Berhasil',
+                isTarikKosongSaja
+                    ? `${qtyKosong} tabung kosong dari ${cust.name} berhasil dicatat. Pembayaran Rp ${bayar.toLocaleString('id-ID')} dicatat ke piutang.`
+                    : `${qtyIsi} tabung isi untuk ${cust.name} berhasil dicatat.`
+            );
 
             render();
         }
@@ -6105,173 +6536,107 @@ ${trx.catatan || ''}
    ============================================================ */
 
 function updateEditTransactionPreview() {
+            const db = getDB();
 
-    const db = getDB();
+            const mode =
+                document.querySelector('input[name="editTrxMode"]:checked')?.value ||
+                'tukar';
 
-    const mode =
-        document.querySelector(
-            'input[name="editTrxMode"]:checked'
-        )?.value || 'tukar';
+            const qty =
+                Math.max(
+                    0,
+                    Number(document.getElementById('editTrxQty')?.value || 0)
+                );
 
+            const harga =
+                Math.max(
+                    0,
+                    Number(document.getElementById('editTrxHarga')?.value || 0)
+                );
 
-    const qtyIsi =
-        Math.max(
-            0,
-            Number(
-                document.getElementById(
-                    'editTrxQty'
-                )?.value || 0
-            )
-        );
+            const bayarInput = document.getElementById('editTrxBayar');
 
+            const bayar =
+                Math.max(
+                    0,
+                    Number(bayarInput?.value || 0)
+                );
 
-    const harga =
-        Math.max(
-            0,
-            Number(
-                document.getElementById(
-                    'editTrxHarga'
-                )?.value || 0
-            )
-        );
+            const trxId = window.currentEditingTransactionId;
+            const trx = (db.transactions || []).find(t => t.id === trxId);
 
+            let totalTagihan;
+            let sisa;
 
-    const bayar =
-        Math.max(
-            0,
-            Number(
-                document.getElementById(
-                    'editTrxBayar'
-                )?.value || 0
-            )
-        );
+            if (mode === 'tarik_kosong' && trx) {
+                /*
+                 * Hanya Tarik Kosong tidak memiliki tagihan transaksi baru.
+                 * Tetapi pembayaran dapat digunakan untuk membayar piutang
+                 * warung yang sudah ada.
+                 *
+                 * Karena itu yang ditampilkan adalah TOTAL TAGIHAN WARUNG,
+                 * bukan Rp0 dari transaksi tarik kosong.
+                 */
+                const allTransactions = (db.transactions || []).filter(t =>
+                    String(t.customerId) === String(trx.customerId) &&
+                    !t.deletedAt
+                );
 
-
-    /*
-     * Ambil transaksi yang sedang diedit.
-     */
-    const trxId =
-        window.currentEditingTransactionId;
-
-
-    const trx =
-        (db.transactions || []).find(
-            t => t.id === trxId
-        );
-
-
-    let totalTagihan = 0;
-
-
-    /*
-     * KIRIM ISI / TUKAR + KIRIM ISI
-     *
-     * Tagihan berasal dari jumlah isi
-     * dikali harga jual.
-     */
-    if (
-        mode === 'kirim_isi' ||
-        mode === 'tukar'
-    ) {
-
-        totalTagihan =
-            qtyIsi * harga;
-
-    }
-
-
-    /*
-     * HANYA TARIK KOSONG
-     *
-     * PENTING:
-     * Jangan dibuat otomatis Rp0.
-     *
-     * Jika transaksi yang sedang diedit
-     * sebelumnya mempunyai tagihan,
-     * pertahankan total tagihan tersebut.
-     *
-     * Dengan demikian pembayaran tetap
-     * dapat diproses.
-     */
-    if (mode === 'tarik_kosong') {
-
-        if (trx) {
-
-            totalTagihan =
-                Number(
-                    trx.totalHarga ||
-                    trx.totalTagihan ||
+                totalTagihan = allTransactions.reduce(
+                    (s, t) => s + Math.max(0, Number(t.totalHarga || 0)),
                     0
                 );
 
-        } else {
+                const paidExcludingCurrent = allTransactions
+                    .filter(t => String(t.id) !== String(trx.id))
+                    .reduce(
+                        (s, t) => s + Math.max(0, Number(t.bayar || 0)),
+                        0
+                    );
 
-            totalTagihan = 0;
+                sisa = Math.max(
+                    0,
+                    totalTagihan - paidExcludingCurrent - bayar
+                );
+            } else {
+                totalTagihan = qty * harga;
+                sisa = Math.max(0, totalTagihan - bayar);
+            }
 
+            const totalEl = document.getElementById('editTrxTotalPreview');
+            const sisaEl = document.getElementById('editTrxSisaPreview');
+
+            if (totalEl) {
+                totalEl.textContent =
+                    `Rp ${totalTagihan.toLocaleString('id-ID')}`;
+            }
+
+            if (sisaEl) {
+                sisaEl.textContent =
+                    `Rp ${sisa.toLocaleString('id-ID')}`;
+
+                sisaEl.className =
+                    sisa > 0
+                        ? 'text-rose-700 font-bold'
+                        : 'text-emerald-700 font-bold';
+            }
+
+            if (bayarInput) {
+                bayarInput.disabled = false;
+
+                if (mode === 'tarik_kosong' && trx) {
+                    const summary = getCustomerDebtSummary(trx.customerId, trx.id);
+                    const maxPayment =
+                        summary.sisaTagihan + Math.max(0, Number(trx.bayar || 0));
+                    bayarInput.max = Math.max(0, maxPayment);
+                } else {
+                    bayarInput.max = Math.max(0, totalTagihan);
+                    if (bayar > totalTagihan) {
+                        bayarInput.value = totalTagihan;
+                    }
+                }
+            }
         }
-
-    }
-
-
-    /*
-     * Sisa tagihan.
-     */
-    const sisa =
-        Math.max(
-            0,
-            totalTagihan - bayar
-        );
-
-
-    const totalEl =
-        document.getElementById(
-            'editTrxTotalPreview'
-        );
-
-
-    const sisaEl =
-        document.getElementById(
-            'editTrxSisaPreview'
-        );
-
-
-    if (totalEl) {
-
-        totalEl.textContent =
-            `Rp ${totalTagihan.toLocaleString('id-ID')}`;
-
-    }
-
-
-    if (sisaEl) {
-
-        sisaEl.textContent =
-            `Rp ${sisa.toLocaleString('id-ID')}`;
-
-        sisaEl.className =
-            sisa > 0
-                ? 'text-rose-700 font-bold'
-                : 'text-emerald-700 font-bold';
-
-    }
-
-
-    /*
-     * Pembayaran TIDAK dinonaktifkan
-     * untuk Hanya Tarik Kosong.
-     */
-    const bayarInput =
-        document.getElementById(
-            'editTrxBayar'
-        );
-
-
-    if (bayarInput) {
-
-        bayarInput.disabled = false;
-
-    }
-}
 
         // ============================================================
 // ADMIN PANGKALAN — EDIT TRANSAKSI WARUNG
@@ -6533,490 +6898,236 @@ function updateEditTransactionPreview() {
 
 
 function submitEditTransaction(e, trxId) {
-    e.preventDefault();
+            e.preventDefault();
 
+            const db = getDB();
+            const trx = (db.transactions || []).find(t => t.id === trxId);
 
-    const db = getDB();
+            if (!trx) {
+                showAlert('Gagal', 'Transaksi tidak ditemukan.', 'error');
+                return;
+            }
 
+            const pangId = String(db.currentUser?.pangkalanId || '');
+            if (!pangId || String(trx.pangkalanId || '') !== pangId) {
+                showAlert('Akses Ditolak', 'Transaksi ini bukan milik pangkalan Anda.', 'error');
+                return;
+            }
 
-    const trx =
-        (db.transactions || []).find(
-            t => t.id === trxId
-        );
+            const customer = (db.customers || []).find(c => c.id === trx.customerId);
 
+            const mode =
+                document.querySelector('input[name="editTrxMode"]:checked')?.value ||
+                'tukar';
 
-    if (!trx) {
-        showAlert(
-            'Gagal',
-            'Transaksi tidak ditemukan.',
-            'error'
-        );
-        return;
-    }
+            const newDate =
+                document.getElementById('editTrxDate')?.value || '';
 
+            const newQty =
+                Math.max(0, Number(document.getElementById('editTrxQty')?.value || 0));
 
-    const pangId =
-        String(
-            db.currentUser?.pangkalanId || ''
-        );
+            const newQtyKosong =
+                Math.max(0, Number(document.getElementById('editTrxQtyKosong')?.value || 0));
 
+            const newHpp =
+                Math.max(0, Number(document.getElementById('editTrxHpp')?.value || 0));
 
-    const trxPangkalanId =
-        String(
-            trx.pangkalanId || ''
-        );
+            const newHarga =
+                Math.max(0, Number(document.getElementById('editTrxHarga')?.value || 0));
 
+            const newBayar =
+                Math.max(0, Number(document.getElementById('editTrxBayar')?.value || 0));
 
-    if (
-        !pangId ||
-        trxPangkalanId !== pangId
-    ) {
-        showAlert(
-            'Akses Ditolak',
-            'Transaksi ini bukan milik pangkalan Anda.',
-            'error'
-        );
-        return;
-    }
+            const newCatatan =
+                document.getElementById('editTrxCatatan')?.value.trim() || '';
 
+            if (!newDate) {
+                showAlert('Transaksi Gagal', 'Tanggal transaksi wajib diisi.', 'error');
+                return;
+            }
 
-    const customer =
-        (db.customers || []).find(
-            c => c.id === trx.customerId
-        );
+            if (mode === 'tarik_kosong') {
+                if (newQty !== 0) {
+                    showAlert('Transaksi Gagal', 'Mode Hanya Tarik Kosong tidak boleh mengirim tabung isi.', 'error');
+                    return;
+                }
 
+                if (newQtyKosong <= 0) {
+                    showAlert('Transaksi Gagal', 'Jumlah tabung kosong harus lebih dari 0.', 'error');
+                    return;
+                }
+            } else {
+                if (newQty <= 0) {
+                    showAlert('Transaksi Gagal', 'Jumlah tabung isi harus lebih dari 0.', 'error');
+                    return;
+                }
 
-    const mode =
-        document.querySelector(
-            'input[name="editTrxMode"]:checked'
-        )?.value ||
-        'tukar';
+                if (mode === 'kirim_isi' && newQtyKosong !== 0) {
+                    showAlert('Transaksi Gagal', 'Mode Kirim Isi Saja harus memiliki tabung kosong = 0.', 'error');
+                    return;
+                }
 
+                if (mode === 'tukar' && newQtyKosong <= 0) {
+                    showAlert('Transaksi Gagal', 'Untuk Tukar + Kirim Isi, jumlah tabung kosong harus lebih dari 0.', 'error');
+                    return;
+                }
+            }
 
-    const newDate =
-        document.getElementById('editTrxDate').value;
+            /*
+             * Stok isi gudang dihitung dari ledger utama + pengembalian isi
+             * dari warung. Saat edit, kembalikan qty lama transaksi ini
+             * terlebih dahulu secara matematis.
+             */
+            if (mode !== 'tarik_kosong') {
+                const pangInv = getPangkalanInventory(pangId);
+                const availableForEdit =
+                    Number(pangInv.stokIsiGudang || 0) +
+                    Math.max(0, Number(trx.qty3kg || 0));
 
+                if (newQty > availableForEdit) {
+                    showAlert(
+                        'Stok Gudang Tidak Cukup',
+                        `Stok isi yang tersedia untuk perubahan transaksi ini ${availableForEdit} unit.`,
+                        'error'
+                    );
+                    return;
+                }
+            }
 
-    const newQty =
-        Math.max(
-            0,
-            Number(
-                document.getElementById('editTrxQty').value || 0
-            )
-        );
+            if (newQtyKosong > 0) {
+                const stokWarung = getWarungInventory(trx.customerId);
+                const stokKosongAktual =
+                    Number(stokWarung.estimasiStokKosongWarung || 0) +
+                    Number(trx.qtyKosongDiambil || 0);
 
+                if (newQtyKosong > stokKosongAktual) {
+                    showAlert(
+                        'Stok Kosong Tidak Mencukupi',
+                        `Stok kosong warung yang tersedia untuk transaksi ini hanya ${stokKosongAktual} unit.`,
+                        'error'
+                    );
+                    return;
+                }
+            }
 
-    const newQtyKosong =
-        Math.max(
-            0,
-            Number(
-                document.getElementById('editTrxQtyKosong').value || 0
-            )
-        );
+            let totalBaru = 0;
 
+            if (mode !== 'tarik_kosong') {
+                totalBaru = newQty * newHarga;
 
-    const newHpp =
-        Math.max(
-            0,
-            Number(
-                document.getElementById('editTrxHpp').value || 0
-            )
-        );
+                if (newBayar > totalBaru) {
+                    showAlert(
+                        'Pembayaran Tidak Valid',
+                        'Jumlah pembayaran tidak boleh melebihi total tagihan transaksi.',
+                        'error'
+                    );
+                    return;
+                }
+            } else {
+                /*
+                 * Pembayaran pada transaksi tarik kosong adalah pembayaran
+                 * piutang, bukan harga transaksi tarik kosong.
+                 * TotalHarga transaksi tetap 0 agar tidak menggandakan omset.
+                 */
+                const debtExcludingCurrent =
+                    getCustomerDebtSummary(trx.customerId, trx.id);
 
+                const maxPayment =
+                    debtExcludingCurrent.sisaTagihan +
+                    Math.max(0, Number(trx.bayar || 0));
 
-    const newHarga =
-        Math.max(
-            0,
-            Number(
-                document.getElementById('editTrxHarga').value || 0
-            )
-        );
+                if (newBayar > maxPayment) {
+                    showAlert(
+                        'Pembayaran Tidak Valid',
+                        `Pembayaran maksimal untuk piutang warung adalah Rp ${maxPayment.toLocaleString('id-ID')}.`,
+                        'error'
+                    );
+                    return;
+                }
+            }
 
+            const totalHpp =
+                mode === 'tarik_kosong'
+                    ? 0
+                    : newQty * newHpp;
 
-    const newBayarInput =
-        document.getElementById('editTrxBayar');
+            trx.date = newDate;
+            trx.qty3kg = mode === 'tarik_kosong' ? 0 : newQty;
+            trx.qtyKosongDiambil = newQtyKosong;
+            trx.modePenukaran = mode;
+            trx.jenisTransaksi =
+                mode === 'tarik_kosong'
+                    ? 'tarik_kosong'
+                    : mode === 'kirim_isi'
+                        ? 'kirim_isi'
+                        : 'penukaran';
 
+            trx.modalPerTabung =
+                mode === 'tarik_kosong' ? 0 : newHpp;
 
-    let newBayar =
-        Math.max(
-            0,
-            Number(
-                newBayarInput?.value || 0
-            )
-        );
+            trx.hargaJual =
+                mode === 'tarik_kosong' ? 0 : newHarga;
 
+            trx.hargaJualPerTabung =
+                mode === 'tarik_kosong' ? 0 : newHarga;
 
-    const newCatatan =
-        document.getElementById('editTrxCatatan').value.trim();
+            trx.totalHpp = totalHpp;
+            trx.profit =
+                mode === 'tarik_kosong'
+                    ? 0
+                    : totalBaru - totalHpp;
 
+            trx.totalHarga = totalBaru;
 
-    // ========================================================
-    // VALIDASI TANGGAL
-    // ========================================================
+            /*
+             * Jangan pernah memaksa bayar menjadi 0 pada tarik kosong.
+             */
+            trx.bayar = newBayar;
 
-    if (!newDate) {
-        showAlert(
-            'Transaksi Gagal',
-            'Tanggal transaksi wajib diisi.',
-            'error'
-        );
-        return;
-    }
+            if (mode === 'tarik_kosong') {
+                const debtAfterPayment =
+                    getCustomerDebtSummary(trx.customerId, trx.id);
 
+                trx.statusBayar =
+                    newBayar > 0
+                        ? (
+                            newBayar >= debtAfterPayment.sisaTagihan
+                                ? 'lunas'
+                                : 'pembayaran_piutang'
+                        )
+                        : 'belum_lunas';
+            } else {
+                trx.statusBayar =
+                    newBayar >= totalBaru
+                        ? 'lunas'
+                        : 'belum_lunas';
+            }
 
-    // ========================================================
-    // VALIDASI JUMLAH FISIK
-    // ========================================================
-
-    if (mode === 'tarik_kosong') {
-
-        if (newQtyKosong <= 0) {
-            showAlert(
-                'Transaksi Gagal',
-                'Untuk Hanya Tarik Kosong, jumlah kosong harus lebih dari 0.',
-                'error'
-            );
-            return;
-        }
-
-        // Isi memang harus 0.
-        if (newQty !== 0) {
-            showAlert(
-                'Transaksi Gagal',
-                'Mode Hanya Tarik Kosong tidak boleh mengirim tabung isi.',
-                'error'
-            );
-            return;
-        }
-
-    } else {
-
-        if (newQty <= 0) {
-            showAlert(
-                'Transaksi Gagal',
-                'Jumlah tabung isi harus lebih dari 0.',
-                'error'
-            );
-            return;
-        }
-    }
-
-
-    // ========================================================
-    // VALIDASI TUKAR
-    // ========================================================
-
-    if (
-        mode === 'tukar' &&
-        newQtyKosong <= 0
-    ) {
-        showAlert(
-            'Transaksi Gagal',
-            'Untuk Tukar + Kirim Isi, jumlah tabung kosong harus lebih dari 0.',
-            'error'
-        );
-        return;
-    }
-
-
-    // ========================================================
-    // VALIDASI KIRIM ISI SAJA
-    // ========================================================
-
-    if (
-        mode === 'kirim_isi' &&
-        newQtyKosong !== 0
-    ) {
-        showAlert(
-            'Transaksi Gagal',
-            'Mode Kirim Isi Saja harus memiliki tabung kosong = 0.',
-            'error'
-        );
-        return;
-    }
-
-
-    // ========================================================
-    // PENTING:
-    // TIDAK ADA LAGI:
-    //
-    // if (mode === 'tarik_kosong') {
-    //     newBayar = 0;
-    // }
-    //
-    // Pembayaran tetap mempertahankan nilai input admin.
-    // ========================================================
-
-
-    // ========================================================
-    // TOTAL TRANSAKSI
-    // ========================================================
-
-    const totalBaru =
-        mode === 'tarik_kosong'
-            ? 0
-            : newQty * newHarga;
-
-
-    // ========================================================
-    // VALIDASI PEMBAYARAN
-    //
-    // Hanya Tarik Kosong:
-    // pembayaran boleh > 0 karena pembayaran tidak dianggap
-    // sebagai nilai penjualan isi pada transaksi ini.
-    //
-    // Mode normal:
-    // pembayaran tidak boleh melebihi tagihan.
-    // ========================================================
-
-    if (
-        mode !== 'tarik_kosong' &&
-        newBayar > totalBaru
-    ) {
-        showAlert(
-            'Pembayaran Tidak Valid',
-            'Jumlah pembayaran tidak boleh melebihi total tagihan.',
-            'error'
-        );
-        return;
-    }
-
-
-    // ========================================================
-    // VALIDASI STOK ISI PANGKALAN
-    //
-    // Hanya berlaku jika memang mengirim isi.
-    // ========================================================
-
-    if (mode !== 'tarik_kosong') {
-
-        const totalAlokasi =
-            (db.allocations || [])
-                .filter(
-                    a =>
-                        a.pangkalanId === pangId
-                )
-                .reduce(
-                    (sum, a) =>
-                        sum +
-                        Number(a.isi3kg || 0),
-                    0
+            trx.catatan =
+                newCatatan ||
+                (
+                    mode === 'tarik_kosong'
+                        ? 'Hanya Tarik Tabung Kosong'
+                        : mode === 'kirim_isi'
+                            ? 'Kirim Tabung Isi Saja'
+                            : 'Penukaran Tabung Kosong & Pengiriman Tabung Isi'
                 );
 
+            trx.updatedAt = new Date().toISOString();
 
-        const totalTerjualLain =
-            (db.transactions || [])
-                .filter(
-                    t =>
-                        t.pangkalanId === pangId &&
-                        t.id !== trxId &&
-                        isActiveTransaction(t)
-                )
-                .reduce(
-                    (sum, t) =>
-                        sum +
-                        Number(t.qty3kg || 0),
-                    0
-                );
+            if (trx.reportId) {
+                syncWarungReportFromTransactions(trx.reportId, db);
+            }
 
+            saveDB(db);
+            closeModal();
+            render();
 
-        const stokTersediaUntukTransaksi =
-            Math.max(
-                0,
-                totalAlokasi -
-                totalTerjualLain
-            );
-
-
-        if (
-            newQty >
-            stokTersediaUntukTransaksi
-        ) {
             showAlert(
-                'Stok Tidak Mencukupi',
-                `Jumlah tabung isi baru ${newQty} melebihi stok yang tersedia untuk transaksi ini (${stokTersediaUntukTransaksi} tabung).`,
-                'error'
+                'Transaksi Diperbarui',
+                `Histori transaksi ${customer?.name || trx.customerName || 'pelanggan'} berhasil diperbarui.`
             );
-            return;
         }
-    }
-
-
-    // ========================================================
-    // VALIDASI STOK KOSONG WARUNG
-    // ========================================================
-
-    if (newQtyKosong > 0) {
-
-        const stokWarung =
-            getWarungInventory(
-                trx.customerId
-            );
-
-
-        const stokKosongAktual =
-            Number(
-                stokWarung.estimasiStokKosongWarung || 0
-            ) +
-            Number(
-                trx.qtyKosongDiambil || 0
-            );
-
-
-        if (
-            newQtyKosong >
-            stokKosongAktual
-        ) {
-            showAlert(
-                'Stok Kosong Tidak Mencukupi',
-                `Stok kosong warung yang tersedia untuk transaksi ini hanya ${stokKosongAktual} unit.`,
-                'error'
-            );
-            return;
-        }
-    }
-
-
-    // ========================================================
-    // HPP
-    // ========================================================
-
-    const totalHpp =
-        mode === 'tarik_kosong'
-            ? 0
-            : newQty * newHpp;
-
-
-    const profit =
-        totalBaru -
-        totalHpp;
-
-
-    // ========================================================
-    // SIMPAN PERUBAHAN
-    // ========================================================
-
-    trx.date =
-        newDate;
-
-
-    trx.qty3kg =
-        mode === 'tarik_kosong'
-            ? 0
-            : newQty;
-
-
-    trx.qtyKosongDiambil =
-        newQtyKosong;
-
-
-    trx.modePenukaran =
-        mode;
-
-
-    trx.jenisTransaksi =
-        mode === 'tarik_kosong'
-            ? 'tarik_kosong'
-            : mode === 'kirim_isi'
-                ? 'kirim_isi'
-                : 'penukaran';
-
-
-    trx.modalPerTabung =
-        mode === 'tarik_kosong'
-            ? 0
-            : newHpp;
-
-
-    trx.hargaJual =
-        mode === 'tarik_kosong'
-            ? 0
-            : newHarga;
-
-
-    trx.hargaJualPerTabung =
-        mode === 'tarik_kosong'
-            ? 0
-            : newHarga;
-
-
-    trx.totalHpp =
-        totalHpp;
-
-
-    trx.profit =
-        profit;
-
-
-    trx.totalHarga =
-        totalBaru;
-
-
-    // ========================================================
-    // PEMBAYARAN
-    //
-    // NILAI INPUT ADMIN SELALU DISIMPAN.
-    // Termasuk mode Hanya Tarik Kosong.
-    // ========================================================
-
-    trx.bayar =
-        newBayar;
-
-
-    trx.statusBayar =
-        newBayar > 0
-            ? 'lunas'
-            : 'belum_lunas';
-
-
-    trx.catatan =
-        newCatatan ||
-        (
-            mode === 'tarik_kosong'
-                ? 'Hanya Tarik Tabung Kosong'
-                : mode === 'kirim_isi'
-                    ? 'Kirim Tabung Isi Saja'
-                    : 'Penukaran Tabung Kosong & Pengiriman Tabung Isi'
-        );
-
-
-    trx.updatedAt =
-        new Date().toISOString();
-
-
-    // ========================================================
-    // SINKRONISASI LAPORAN WARUNG
-    // Hanya jika transaksi memang mempunyai reportId.
-    // ========================================================
-
-    if (trx.reportId) {
-        syncWarungReportFromTransactions(
-            trx.reportId,
-            db
-        );
-    }
-
-
-    // ========================================================
-    // SIMPAN DATABASE
-    // ========================================================
-
-    saveDB(db);
-
-
-    closeModal();
-    render();
-
-
-    showAlert(
-        'Transaksi Diperbarui',
-        `Histori transaksi ${
-            customer?.name ||
-            trx.customerName ||
-            'pelanggan'
-        } berhasil diperbarui.`
-    );
-}
 
         function openPayDebtModal(trxId) {
             const db = getDB();
