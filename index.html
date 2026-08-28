@@ -5424,7 +5424,7 @@
                 if (stillExists) throw new Error('Warung masih tercatat di database pusat.');
 
                 closeModal();
-                showAlert('Warung Dihapus', `${customerName} berhasil dihapus permanen dari database pusat.`);
+                showAlert('Warung Dihapus', `${warungName} berhasil dihapus permanen dari database pusat.`);
                 render();
             } catch (error) {
                 console.error('Gagal menghapus warung:', error);
