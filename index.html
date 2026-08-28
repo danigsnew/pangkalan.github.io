@@ -1657,8 +1657,27 @@
             const trxs = db.transactions.filter(t => t.pangkalanId === pangkalanId);
             const returns = db.emptyReturnsToAgency.filter(r => r.pangkalanId === pangkalanId);
 
-            const totalIsiMasuk = allocs.reduce((s, a) => s + Number(a.isi3kg || 0), 0);
-            const totalIsiTerjual = trxs.reduce((s, t) => s + Number(t.qty3kg || 0), 0);
+           const totalIsiAlokasi = allocs.reduce(
+                (s, a) => s + Number(a.isi3kg || 0),
+                0
+            );
+            
+            const totalIsiPenyesuaian = (db.pangkalanStockAdjustments || [])
+                .filter(a =>
+                    String(a.pangkalanId) === String(pangkalanId)
+                )
+                .reduce(
+                    (s, a) => s + Number(a.isiQty || 0),
+                    0
+                );
+            
+            const totalIsiMasuk =
+                totalIsiAlokasi + totalIsiPenyesuaian;
+            
+            const totalIsiTerjual = trxs.reduce(
+                (s, t) => s + Number(t.qty3kg || 0),
+                0
+            );
 
             // Stok gudang pangkalan = total kiriman/alokasi dari Super Admin
             // dikurangi seluruh transaksi penjualan yang masih tercatat.
