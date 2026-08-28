@@ -1671,8 +1671,7 @@
                     0
                 );
             
-            const totalIsiMasuk =
-                totalIsiAlokasi + totalIsiPenyesuaian;
+            const totalIsiMasuk = totalIsiAlokasi;
             
             const totalIsiTerjual = trxs.reduce(
                 (s, t) => s + Number(t.qty3kg || 0),
