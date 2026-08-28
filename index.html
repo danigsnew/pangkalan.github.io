@@ -5699,313 +5699,579 @@ ${pangkalanName}
         }
 
         function openEditTransactionModal(trxId) {
-            const db = getDB();
+    const db = getDB();
 
-            const trx = (db.transactions || []).find(
-                t => t.id === trxId
-            );
+    const trx = (db.transactions || []).find(
+        t => t.id === trxId
+    );
 
-            if (!trx) {
-                showAlert('Gagal', 'Transaksi tidak ditemukan.', 'error');
-                return;
-            }
+    if (!trx) {
+        showAlert(
+            'Gagal',
+            'Transaksi tidak ditemukan.',
+            'error'
+        );
+        return;
+    }
 
-            const pangId = String(db.currentUser?.pangkalanId || '');
-            const trxPangkalanId = String(trx.pangkalanId || '');
+    const pangId =
+        String(db.currentUser?.pangkalanId || '');
 
-            if (!pangId || trxPangkalanId !== pangId) {
-                showAlert(
-                    'Akses Ditolak',
-                    'Transaksi ini bukan milik pangkalan Anda.',
-                    'error'
-                );
-                return;
-            }
+    const trxPangkalanId =
+        String(trx.pangkalanId || '');
 
-            const customer = (db.customers || []).find(
-                c => c.id === trx.customerId
-            );
+    if (!pangId || trxPangkalanId !== pangId) {
+        showAlert(
+            'Akses Ditolak',
+            'Transaksi ini bukan milik pangkalan Anda.',
+            'error'
+        );
+        return;
+    }
 
-            const customerName =
-                customer?.name ||
-                trx.customerName ||
-                'Pelanggan';
+    const customer =
+        (db.customers || []).find(
+            c => c.id === trx.customerId
+        );
 
-            const customerType =
-                customer?.type ||
-                trx.customerType ||
-                'warung';
+    const customerName =
+        customer?.name ||
+        trx.customerName ||
+        'Pelanggan';
 
-            const typeLabel =
-                customerType === 'perorangan'
-                    ? 'Perorangan'
-                    : 'Warung';
+    const customerType =
+        customer?.type ||
+        trx.customerType ||
+        'warung';
 
-            const mode = getEditTransactionMode(trx);
+    const typeLabel =
+        customerType === 'perorangan'
+            ? 'Perorangan'
+            : 'Warung';
 
-            const qtyIsi = Math.max(
-                0,
-                Number(trx.qty3kg || 0)
-            );
+    const mode =
+        getEditTransactionMode(trx);
 
-            const qtyKosong = Math.max(
-                0,
-                Number(trx.qtyKosongDiambil || 0)
-            );
+    const qtyIsi =
+        Math.max(
+            0,
+            Number(trx.qty3kg || 0)
+        );
 
-            const harga = Math.max(
-                0,
+    const qtyKosong =
+        Math.max(
+            0,
+            Number(trx.qtyKosongDiambil || 0)
+        );
+
+    const harga =
+        Math.max(
+            0,
+            Number(
+                trx.hargaJualPerTabung ||
+                trx.hargaJual ||
+                0
+            )
+        );
+
+    const hpp =
+        Math.max(
+            0,
+            Number(
+                trx.modalPerTabung ||
+                HET_PEMERINTAH
+            )
+        );
+
+    const bayar =
+        Math.max(
+            0,
+            Number(trx.bayar || 0)
+        );
+
+    /*
+     * Simpan ID transaksi yang sedang diedit.
+     * Ini diperlukan agar preview mengetahui
+     * total tagihan transaksi lama.
+     */
+    window.currentEditingTransactionId = trx.id;
+
+
+    showModal(
+        'Edit Histori Transaksi',
+        `${customerName} • ${typeLabel}`,
+        'fa-pen-to-square',
+        'bg-amber-100 text-amber-700',
+        `
+        <form
+            onsubmit="submitEditTransaction(event, '${trx.id}')"
+            class="space-y-4">
+
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+
+                <p class="text-[10px] uppercase font-bold text-slate-400">
+                    Pelanggan
+                </p>
+
+                <p class="text-sm font-extrabold text-slate-800 mt-1">
+                    ${customerName}
+                </p>
+
+                <p class="text-[10px] text-slate-500 mt-1">
+                    ${typeLabel}
+                </p>
+
+            </div>
+
+
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-2">
+                    Jenis Proses Transaksi
+                </label>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+                    <label class="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer">
+
+                        <input
+                            type="radio"
+                            name="editTrxMode"
+                            value="tukar"
+                            ${mode === 'tukar' ? 'checked' : ''}
+                            onchange="toggleEditTransactionMode()"
+                            class="accent-emerald-600">
+
+                        <span class="text-xs font-bold text-emerald-700">
+                            Tukar + Kirim Isi
+                        </span>
+
+                    </label>
+
+
+                    <label class="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer">
+
+                        <input
+                            type="radio"
+                            name="editTrxMode"
+                            value="kirim_isi"
+                            ${mode === 'kirim_isi' ? 'checked' : ''}
+                            onchange="toggleEditTransactionMode()"
+                            class="accent-blue-600">
+
+                        <span class="text-xs font-bold text-blue-700">
+                            Kirim Isi Saja
+                        </span>
+
+                    </label>
+
+
+                    <label class="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer">
+
+                        <input
+                            type="radio"
+                            name="editTrxMode"
+                            value="tarik_kosong"
+                            ${mode === 'tarik_kosong' ? 'checked' : ''}
+                            onchange="toggleEditTransactionMode()"
+                            class="accent-amber-600">
+
+                        <span class="text-xs font-bold text-amber-700">
+                            Hanya Tarik Kosong
+                        </span>
+
+                    </label>
+
+                </div>
+
+            </div>
+
+
+            <div class="grid grid-cols-2 gap-4">
+
+                <div class="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
+
+                    <label class="block text-[11px] font-bold text-emerald-800 uppercase mb-2">
+                        Tabung Isi Dikirim
+                    </label>
+
+                    <input
+                        type="number"
+                        id="editTrxQty"
+                        min="0"
+                        value="${qtyIsi}"
+                        oninput="updateEditTransactionPreview()"
+                        required
+                        class="w-full px-3 py-2 bg-white border border-emerald-200 rounded-xl text-sm font-bold text-emerald-900">
+
+                    <p
+                        id="editTrxQtyHelp"
+                        class="text-[10px] text-emerald-700 mt-1">
+                        Jumlah tabung isi yang dikirim ke warung.
+                    </p>
+
+                </div>
+
+
+                <div class="bg-amber-50/60 p-4 rounded-2xl border border-amber-100">
+
+                    <label class="block text-[11px] font-bold text-amber-800 uppercase mb-2">
+                        Tabung Kosong Ditarik
+                    </label>
+
+                    <input
+                        type="number"
+                        id="editTrxQtyKosong"
+                        min="0"
+                        value="${qtyKosong}"
+                        oninput="updateEditTransactionPreview()"
+                        required
+                        class="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-sm font-bold text-amber-900">
+
+                    <p
+                        id="editTrxKosongHelp"
+                        class="text-[10px] text-amber-700 mt-1">
+                        Jumlah tabung kosong yang ditarik dari warung.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="grid grid-cols-2 gap-4">
+
+                <div>
+
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">
+                        HPP / Tabung
+                    </label>
+
+                    <input
+                        type="number"
+                        id="editTrxHpp"
+                        min="0"
+                        value="${hpp}"
+                        oninput="updateEditTransactionPreview()"
+                        required
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+
+                </div>
+
+
+                <div>
+
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">
+                        Harga Jual / Tabung
+                    </label>
+
+                    <input
+                        type="number"
+                        id="editTrxHarga"
+                        min="0"
+                        value="${harga}"
+                        oninput="updateEditTransactionPreview()"
+                        required
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-emerald-700">
+
+                </div>
+
+            </div>
+
+
+            <div>
+
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                    Jumlah Dibayar
+                </label>
+
+                <input
+                    type="number"
+                    id="editTrxBayar"
+                    min="0"
+                    value="${bayar}"
+                    oninput="updateEditTransactionPreview()"
+                    required
+                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-emerald-700">
+
+                <p class="text-[10px] text-slate-400 mt-1">
+                    Pembayaran dapat diinput untuk semua jenis proses transaksi.
+                </p>
+
+            </div>
+
+
+            <div>
+
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                    Tanggal Transaksi
+                </label>
+
+                <input
+                    type="date"
+                    id="editTrxDate"
+                    value="${trx.date || ''}"
+                    required
+                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
+
+            </div>
+
+
+            <div>
+
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                    Catatan
+                </label>
+
+                <textarea
+                    id="editTrxCatatan"
+                    rows="3"
+                    class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+${trx.catatan || ''}
+                </textarea>
+
+            </div>
+
+
+            <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
+
+                <div class="flex justify-between text-xs">
+
+                    <span class="text-slate-500">
+                        Total Tagihan
+                    </span>
+
+                    <strong
+                        id="editTrxTotalPreview"
+                        class="text-slate-800">
+                        Rp 0
+                    </strong>
+
+                </div>
+
+
+                <div class="flex justify-between text-xs mt-2">
+
+                    <span class="text-slate-500">
+                        Sisa
+                    </span>
+
+                    <strong
+                        id="editTrxSisaPreview"
+                        class="text-rose-700">
+                        Rp 0
+                    </strong>
+
+                </div>
+
+            </div>
+
+
+            <div class="flex gap-3 pt-2">
+
+                <button
+                    type="button"
+                    onclick="closeModal()"
+                    class="w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm">
+                    Batal
+                </button>
+
+
+                <button
+                    type="submit"
+                    class="w-2/3 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-sm shadow-md">
+
+                    <i class="fa-solid fa-floppy-disk mr-1"></i>
+
+                    Simpan Perubahan
+
+                </button>
+
+            </div>
+
+        </form>
+        `
+    );
+
+
+    toggleEditTransactionMode();
+
+    updateEditTransactionPreview();
+}
+
+
+/* ============================================================
+   PREVIEW TOTAL TAGIHAN EDIT TRANSAKSI
+   ============================================================ */
+
+function updateEditTransactionPreview() {
+
+    const db = getDB();
+
+    const mode =
+        document.querySelector(
+            'input[name="editTrxMode"]:checked'
+        )?.value || 'tukar';
+
+
+    const qtyIsi =
+        Math.max(
+            0,
+            Number(
+                document.getElementById(
+                    'editTrxQty'
+                )?.value || 0
+            )
+        );
+
+
+    const harga =
+        Math.max(
+            0,
+            Number(
+                document.getElementById(
+                    'editTrxHarga'
+                )?.value || 0
+            )
+        );
+
+
+    const bayar =
+        Math.max(
+            0,
+            Number(
+                document.getElementById(
+                    'editTrxBayar'
+                )?.value || 0
+            )
+        );
+
+
+    /*
+     * Ambil transaksi yang sedang diedit.
+     */
+    const trxId =
+        window.currentEditingTransactionId;
+
+
+    const trx =
+        (db.transactions || []).find(
+            t => t.id === trxId
+        );
+
+
+    let totalTagihan = 0;
+
+
+    /*
+     * KIRIM ISI / TUKAR + KIRIM ISI
+     *
+     * Tagihan berasal dari jumlah isi
+     * dikali harga jual.
+     */
+    if (
+        mode === 'kirim_isi' ||
+        mode === 'tukar'
+    ) {
+
+        totalTagihan =
+            qtyIsi * harga;
+
+    }
+
+
+    /*
+     * HANYA TARIK KOSONG
+     *
+     * PENTING:
+     * Jangan dibuat otomatis Rp0.
+     *
+     * Jika transaksi yang sedang diedit
+     * sebelumnya mempunyai tagihan,
+     * pertahankan total tagihan tersebut.
+     *
+     * Dengan demikian pembayaran tetap
+     * dapat diproses.
+     */
+    if (mode === 'tarik_kosong') {
+
+        if (trx) {
+
+            totalTagihan =
                 Number(
-                    trx.hargaJualPerTabung ||
-                    trx.hargaJual ||
+                    trx.totalHarga ||
+                    trx.totalTagihan ||
                     0
-                )
-            );
+                );
 
-            const hpp = Math.max(
-                0,
-                Number(
-                    trx.modalPerTabung ||
-                    HET_PEMERINTAH
-                )
-            );
+        } else {
 
-            const bayar = Math.max(
-                0,
-                Number(trx.bayar || 0)
-            );
+            totalTagihan = 0;
 
-            showModal(
-                'Edit Histori Transaksi',
-                `${customerName} • ${typeLabel}`,
-                'fa-pen-to-square',
-                'bg-amber-100 text-amber-700',
-                `
-                <form
-                    onsubmit="submitEditTransaction(event, '${trx.id}')"
-                    class="space-y-4">
-
-                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                        <p class="text-[10px] uppercase font-bold text-slate-400">
-                            Pelanggan
-                        </p>
-
-                        <p class="text-sm font-extrabold text-slate-800 mt-1">
-                            ${customerName}
-                        </p>
-
-                        <p class="text-[10px] text-slate-500 mt-1">
-                            ${typeLabel}
-                        </p>
-                    </div>
-
-                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
-                        <label class="block text-xs font-bold text-slate-700 uppercase mb-2">
-                            Jenis Proses Transaksi
-                        </label>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <label class="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer">
-                                <input
-                                    type="radio"
-                                    name="editTrxMode"
-                                    value="tukar"
-                                    ${mode === 'tukar' ? 'checked' : ''}
-                                    onchange="toggleEditTransactionMode()"
-                                    class="accent-emerald-600">
-                                <span class="text-xs font-bold text-emerald-700">
-                                    Tukar + Kirim Isi
-                                </span>
-                            </label>
-
-                            <label class="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer">
-                                <input
-                                    type="radio"
-                                    name="editTrxMode"
-                                    value="kirim_isi"
-                                    ${mode === 'kirim_isi' ? 'checked' : ''}
-                                    onchange="toggleEditTransactionMode()"
-                                    class="accent-blue-600">
-                                <span class="text-xs font-bold text-blue-700">
-                                    Kirim Isi Saja
-                                </span>
-                            </label>
-
-                            <label class="flex items-center gap-2 p-3 bg-white rounded-xl border border-slate-200 cursor-pointer">
-                                <input
-                                    type="radio"
-                                    name="editTrxMode"
-                                    value="tarik_kosong"
-                                    ${mode === 'tarik_kosong' ? 'checked' : ''}
-                                    onchange="toggleEditTransactionMode()"
-                                    class="accent-amber-600">
-                                <span class="text-xs font-bold text-amber-700">
-                                    Hanya Tarik Kosong
-                                </span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100">
-                            <label class="block text-[11px] font-bold text-emerald-800 uppercase mb-2">
-                                Tabung Isi Dikirim
-                            </label>
-
-                            <input
-                                type="number"
-                                id="editTrxQty"
-                                min="0"
-                                value="${qtyIsi}"
-                                oninput="updateEditTransactionPreview()"
-                                required
-                                class="w-full px-3 py-2 bg-white border border-emerald-200 rounded-xl text-sm font-bold text-emerald-900">
-
-                            <p id="editTrxQtyHelp" class="text-[10px] text-emerald-700 mt-1">
-                                Jumlah tabung isi yang dikirim ke warung.
-                            </p>
-                        </div>
-
-                        <div class="bg-amber-50/60 p-4 rounded-2xl border border-amber-100">
-                            <label class="block text-[11px] font-bold text-amber-800 uppercase mb-2">
-                                Tabung Kosong Ditarik
-                            </label>
-
-                            <input
-                                type="number"
-                                id="editTrxQtyKosong"
-                                min="0"
-                                value="${qtyKosong}"
-                                oninput="updateEditTransactionPreview()"
-                                required
-                                class="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-sm font-bold text-amber-900">
-
-                            <p id="editTrxKosongHelp" class="text-[10px] text-amber-700 mt-1">
-                                Jumlah tabung kosong yang ditarik dari warung.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1">
-                                HPP / Tabung
-                            </label>
-
-                            <input
-                                type="number"
-                                id="editTrxHpp"
-                                min="0"
-                                value="${hpp}"
-                                oninput="updateEditTransactionPreview()"
-                                required
-                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-600 mb-1">
-                                Harga Jual / Tabung
-                            </label>
-
-                            <input
-                                type="number"
-                                id="editTrxHarga"
-                                min="0"
-                                value="${harga}"
-                                oninput="updateEditTransactionPreview()"
-                                required
-                                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-emerald-700">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">
-                            Jumlah Dibayar
-                        </label>
-
-                        <input
-                            type="number"
-                            id="editTrxBayar"
-                            min="0"
-                            value="${bayar}"
-                            oninput="updateEditTransactionPreview()"
-                            required
-                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-emerald-700">
-
-                        <p class="text-[10px] text-slate-400 mt-1">
-                            Untuk "Hanya Tarik Kosong", pembayaran otomatis Rp 0.
-                        </p>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">
-                            Tanggal Transaksi
-                        </label>
-
-                        <input
-                            type="date"
-                            id="editTrxDate"
-                            value="${trx.date || ''}"
-                            required
-                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold">
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">
-                            Catatan
-                        </label>
-
-                        <textarea
-                            id="editTrxCatatan"
-                            rows="3"
-                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm">${trx.catatan || ''}</textarea>
-                    </div>
-
-                    <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
-                        <div class="flex justify-between text-xs">
-                            <span class="text-slate-500">
-                                Total Tagihan
-                            </span>
-
-                            <strong id="editTrxTotalPreview" class="text-slate-800">
-                                Rp 0
-                            </strong>
-                        </div>
-
-                        <div class="flex justify-between text-xs mt-2">
-                            <span class="text-slate-500">
-                                Sisa
-                            </span>
-
-                            <strong id="editTrxSisaPreview" class="text-rose-700">
-                                Rp 0
-                            </strong>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-3 pt-2">
-                        <button
-                            type="button"
-                            onclick="closeModal()"
-                            class="w-1/3 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm">
-                            Batal
-                        </button>
-
-                        <button
-                            type="submit"
-                            class="w-2/3 py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-sm shadow-md">
-                            <i class="fa-solid fa-floppy-disk mr-1"></i>
-                            Simpan Perubahan
-                        </button>
-                    </div>
-
-                </form>
-                `
-            );
-
-            toggleEditTransactionMode();
-            updateEditTransactionPreview();
         }
+
+    }
+
+
+    /*
+     * Sisa tagihan.
+     */
+    const sisa =
+        Math.max(
+            0,
+            totalTagihan - bayar
+        );
+
+
+    const totalEl =
+        document.getElementById(
+            'editTrxTotalPreview'
+        );
+
+
+    const sisaEl =
+        document.getElementById(
+            'editTrxSisaPreview'
+        );
+
+
+    if (totalEl) {
+
+        totalEl.textContent =
+            `Rp ${totalTagihan.toLocaleString('id-ID')}`;
+
+    }
+
+
+    if (sisaEl) {
+
+        sisaEl.textContent =
+            `Rp ${sisa.toLocaleString('id-ID')}`;
+
+        sisaEl.className =
+            sisa > 0
+                ? 'text-rose-700 font-bold'
+                : 'text-emerald-700 font-bold';
+
+    }
+
+
+    /*
+     * Pembayaran TIDAK dinonaktifkan
+     * untuk Hanya Tarik Kosong.
+     */
+    const bayarInput =
+        document.getElementById(
+            'editTrxBayar'
+        );
+
+
+    if (bayarInput) {
+
+        bayarInput.disabled = false;
+
+    }
+}
 
         // ============================================================
 // ADMIN PANGKALAN — EDIT TRANSAKSI WARUNG
