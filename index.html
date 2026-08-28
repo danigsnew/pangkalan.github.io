@@ -6007,467 +6007,750 @@ ${pangkalanName}
             updateEditTransactionPreview();
         }
 
-        function toggleEditTransactionMode() {
-            const mode =
-                document.querySelector('input[name="editTrxMode"]:checked')?.value ||
-                'tukar';
+        // ============================================================
+// ADMIN PANGKALAN — EDIT TRANSAKSI WARUNG
+// FINAL:
+// - Tukar + Kirim Isi
+// - Kirim Isi Saja
+// - Hanya Tarik Kosong
+//
+// ATURAN:
+// 1. Hanya Tarik Kosong:
+//    - qty isi = 0
+//    - qty kosong = sesuai input
+//    - pembayaran TETAP bisa diinput
+//    - pembayaran TIDAK otomatis menjadi 0
+//    - pembayaran tetap tersimpan
+//    - tidak dianggap sebagai penjualan isi
+//
+// 2. Kirim Isi Saja:
+//    - qty isi > 0
+//    - qty kosong = 0
+//
+// 3. Tukar + Kirim Isi:
+//    - qty isi > 0
+//    - qty kosong > 0
+// ============================================================
 
-            const isiInput =
-                document.getElementById('editTrxQty');
 
-            const kosongInput =
-                document.getElementById('editTrxQtyKosong');
+function toggleEditTransactionMode() {
+    const mode =
+        document.querySelector('input[name="editTrxMode"]:checked')?.value ||
+        'tukar';
 
-            const bayarInput =
-                document.getElementById('editTrxBayar');
+    const isiInput =
+        document.getElementById('editTrxQty');
 
-            const helpIsi =
-                document.getElementById('editTrxQtyHelp');
+    const kosongInput =
+        document.getElementById('editTrxQtyKosong');
 
-            const helpKosong =
-                document.getElementById('editTrxKosongHelp');
+    const bayarInput =
+        document.getElementById('editTrxBayar');
 
-            if (!isiInput || !kosongInput) return;
+    const helpIsi =
+        document.getElementById('editTrxQtyHelp');
 
-            if (mode === 'tarik_kosong') {
-                isiInput.value = 0;
-                isiInput.readOnly = true;
+    const helpKosong =
+        document.getElementById('editTrxKosongHelp');
 
-                kosongInput.readOnly = false;
-                kosongInput.disabled = false;
+    if (!isiInput || !kosongInput) return;
 
-                if (bayarInput) {
-                    bayarInput.value = 0;
-                    bayarInput.disabled = true;
-                }
 
-                if (helpIsi) {
-                    helpIsi.textContent =
-                        'Mode ini hanya menarik tabung kosong.';
-                }
+    // ========================================================
+    // HANYA TARIK KOSONG
+    // ========================================================
+    if (mode === 'tarik_kosong') {
 
-                if (helpKosong) {
-                    helpKosong.textContent =
-                        'Jumlah kosong yang benar-benar ditarik dari warung.';
-                }
-            } else if (mode === 'kirim_isi') {
-                isiInput.readOnly = false;
+        // Tidak ada isi yang dikirim.
+        isiInput.value = 0;
+        isiInput.readOnly = true;
 
-                kosongInput.value = 0;
-                kosongInput.readOnly = true;
-                kosongInput.disabled = true;
+        // Kosong tetap bisa diinput.
+        kosongInput.readOnly = false;
+        kosongInput.disabled = false;
 
-                if (bayarInput) {
-                    bayarInput.disabled = false;
-                }
-
-                if (helpIsi) {
-                    helpIsi.textContent =
-                        'Mode ini hanya mengirim tabung isi.';
-                }
-
-                if (helpKosong) {
-                    helpKosong.textContent =
-                        'Tidak ada tabung kosong yang ditarik.';
-                }
-            } else {
-                isiInput.readOnly = false;
-
-                kosongInput.readOnly = false;
-                kosongInput.disabled = false;
-
-                if (bayarInput) {
-                    bayarInput.disabled = false;
-                }
-
-                if (helpIsi) {
-                    helpIsi.textContent =
-                        'Jumlah tabung isi yang dikirim ke warung.';
-                }
-
-                if (helpKosong) {
-                    helpKosong.textContent =
-                        'Jumlah tabung kosong yang ditarik dari warung.';
-                }
-            }
-
-            updateEditTransactionPreview();
+        // PEMBAYARAN TETAP AKTIF.
+        // Jangan reset menjadi 0.
+        if (bayarInput) {
+            bayarInput.disabled = false;
+            bayarInput.removeAttribute('max');
         }
 
-        function updateEditTransactionPreview() {
-            const mode =
-                document.querySelector('input[name="editTrxMode"]:checked')?.value ||
-                'tukar';
-
-            const qty =
-                Math.max(
-                    0,
-                    Number(
-                        document.getElementById('editTrxQty')?.value || 0
-                    )
-                );
-
-            const harga =
-                Math.max(
-                    0,
-                    Number(
-                        document.getElementById('editTrxHarga')?.value || 0
-                    )
-                );
-
-            const bayarInput =
-                document.getElementById('editTrxBayar');
-
-            let bayar =
-                Math.max(
-                    0,
-                    Number(bayarInput?.value || 0)
-                );
-
-            const total =
-                mode === 'tarik_kosong'
-                    ? 0
-                    : qty * harga;
-
-            const sisa =
-                Math.max(0, total - bayar);
-
-            const totalEl =
-                document.getElementById('editTrxTotalPreview');
-
-            const sisaEl =
-                document.getElementById('editTrxSisaPreview');
-
-            if (totalEl) {
-                totalEl.textContent =
-                    `Rp ${total.toLocaleString('id-ID')}`;
-            }
-
-            if (sisaEl) {
-                sisaEl.textContent =
-                    `Rp ${sisa.toLocaleString('id-ID')}`;
-
-                sisaEl.className =
-                    sisa > 0
-                        ? 'text-rose-700 font-bold'
-                        : 'text-emerald-700 font-bold';
-            }
-
-            if (bayarInput) {
-                if (mode === 'tarik_kosong') {
-                    bayarInput.value = 0;
-                    bayarInput.max = 0;
-                } else {
-                    bayarInput.disabled = false;
-                    bayarInput.max = total;
-
-                    if (bayar > total) {
-                        bayarInput.value = total;
-                    }
-                }
-            }
+        if (helpIsi) {
+            helpIsi.textContent =
+                'Mode ini hanya menarik tabung kosong.';
         }
 
-        function submitEditTransaction(e, trxId) {
-            e.preventDefault();
+        if (helpKosong) {
+            helpKosong.textContent =
+                'Jumlah kosong yang benar-benar ditarik dari warung.';
+        }
 
-            const db = getDB();
 
-            const trx = (db.transactions || []).find(
-                t => t.id === trxId
-            );
+    // ========================================================
+    // KIRIM ISI SAJA
+    // ========================================================
+    } else if (mode === 'kirim_isi') {
 
-            if (!trx) {
-                showAlert('Gagal', 'Transaksi tidak ditemukan.', 'error');
-                return;
+        isiInput.readOnly = false;
+
+        // Mode ini tidak menarik kosong.
+        kosongInput.value = 0;
+        kosongInput.readOnly = true;
+        kosongInput.disabled = true;
+
+        if (bayarInput) {
+            bayarInput.disabled = false;
+        }
+
+        if (helpIsi) {
+            helpIsi.textContent =
+                'Mode ini hanya mengirim tabung isi.';
+        }
+
+        if (helpKosong) {
+            helpKosong.textContent =
+                'Tidak ada tabung kosong yang ditarik.';
+        }
+
+
+    // ========================================================
+    // TUKAR + KIRIM ISI
+    // ========================================================
+    } else {
+
+        isiInput.readOnly = false;
+
+        kosongInput.readOnly = false;
+        kosongInput.disabled = false;
+
+        if (bayarInput) {
+            bayarInput.disabled = false;
+        }
+
+        if (helpIsi) {
+            helpIsi.textContent =
+                'Jumlah tabung isi yang dikirim ke warung.';
+        }
+
+        if (helpKosong) {
+            helpKosong.textContent =
+                'Jumlah tabung kosong yang ditarik dari warung.';
+        }
+    }
+
+
+    updateEditTransactionPreview();
+}
+
+
+
+function updateEditTransactionPreview() {
+    const mode =
+        document.querySelector('input[name="editTrxMode"]:checked')?.value ||
+        'tukar';
+
+
+    const qty =
+        Math.max(
+            0,
+            Number(
+                document.getElementById('editTrxQty')?.value || 0
+            )
+        );
+
+
+    const harga =
+        Math.max(
+            0,
+            Number(
+                document.getElementById('editTrxHarga')?.value || 0
+            )
+        );
+
+
+    const bayarInput =
+        document.getElementById('editTrxBayar');
+
+
+    const bayar =
+        Math.max(
+            0,
+            Number(
+                bayarInput?.value || 0
+            )
+        );
+
+
+    // ========================================================
+    // TOTAL TAGIHAN
+    //
+    // Hanya Tarik Kosong memang tidak menjual isi baru,
+    // sehingga total transaksi fisiknya = 0.
+    //
+    // Tetapi pembayaran tetap boleh dimasukkan karena
+    // pembayaran merupakan proses finansial yang terpisah.
+    // ========================================================
+
+    const total =
+        mode === 'tarik_kosong'
+            ? 0
+            : qty * harga;
+
+
+    /*
+     * Untuk mode tarik kosong:
+     *
+     * Jangan menghitung sisa sebagai total baru - bayar,
+     * karena total baru memang 0.
+     *
+     * Pembayaran pada mode ini dicatat sebagai pembayaran
+     * terhadap transaksi/hutang yang sedang diproses.
+     *
+     * Preview hanya menampilkan pembayaran yang dimasukkan.
+     */
+    const sisa =
+        mode === 'tarik_kosong'
+            ? 0
+            : Math.max(0, total - bayar);
+
+
+    const totalEl =
+        document.getElementById('editTrxTotalPreview');
+
+    const sisaEl =
+        document.getElementById('editTrxSisaPreview');
+
+
+    if (totalEl) {
+        totalEl.textContent =
+            `Rp ${total.toLocaleString('id-ID')}`;
+    }
+
+
+    if (sisaEl) {
+        sisaEl.textContent =
+            `Rp ${sisa.toLocaleString('id-ID')}`;
+
+        sisaEl.className =
+            sisa > 0
+                ? 'text-rose-700 font-bold'
+                : 'text-emerald-700 font-bold';
+    }
+
+
+    if (bayarInput) {
+
+        // SEMUA MODE:
+        // pembayaran tetap aktif.
+        bayarInput.disabled = false;
+
+        if (mode === 'tarik_kosong') {
+
+            // Tidak ada batas 0.
+            // Admin boleh memasukkan pembayaran.
+            bayarInput.removeAttribute('max');
+
+        } else {
+
+            // Untuk transaksi penjualan normal,
+            // pembayaran maksimal sebesar tagihan.
+            bayarInput.max = total;
+
+            if (bayar > total) {
+                bayarInput.value = total;
             }
+        }
+    }
+}
 
-            const pangId = String(db.currentUser?.pangkalanId || '');
-            const trxPangkalanId = String(trx.pangkalanId || '');
 
-            if (!pangId || trxPangkalanId !== pangId) {
-                showAlert(
-                    'Akses Ditolak',
-                    'Transaksi ini bukan milik pangkalan Anda.',
-                    'error'
-                );
-                return;
-            }
 
-            const customer =
-                (db.customers || []).find(
-                    c => c.id === trx.customerId
-                );
+function submitEditTransaction(e, trxId) {
+    e.preventDefault();
 
-            const mode =
-                document.querySelector('input[name="editTrxMode"]:checked')?.value ||
-                'tukar';
 
-            const newDate =
-                document.getElementById('editTrxDate').value;
+    const db = getDB();
 
-            const newQty =
-                Math.max(
-                    0,
-                    Number(
-                        document.getElementById('editTrxQty').value || 0
-                    )
-                );
 
-            const newQtyKosong =
-                Math.max(
-                    0,
-                    Number(
-                        document.getElementById('editTrxQtyKosong').value || 0
-                    )
-                );
+    const trx =
+        (db.transactions || []).find(
+            t => t.id === trxId
+        );
 
-            const newHpp =
-                Math.max(
-                    0,
-                    Number(
-                        document.getElementById('editTrxHpp').value || 0
-                    )
-                );
 
-            const newHarga =
-                Math.max(
-                    0,
-                    Number(
-                        document.getElementById('editTrxHarga').value || 0
-                    )
-                );
+    if (!trx) {
+        showAlert(
+            'Gagal',
+            'Transaksi tidak ditemukan.',
+            'error'
+        );
+        return;
+    }
 
-            const newBayarInput =
-                document.getElementById('editTrxBayar');
 
-            let newBayar =
-                Math.max(
-                    0,
-                    Number(newBayarInput?.value || 0)
-                );
+    const pangId =
+        String(
+            db.currentUser?.pangkalanId || ''
+        );
 
-            const newCatatan =
-                document.getElementById('editTrxCatatan').value.trim();
 
-            if (!newDate) {
-                showAlert(
-                    'Transaksi Gagal',
-                    'Tanggal transaksi wajib diisi.',
-                    'error'
-                );
-                return;
-            }
+    const trxPangkalanId =
+        String(
+            trx.pangkalanId || ''
+        );
 
-            if (mode === 'tarik_kosong') {
-                if (newQtyKosong <= 0) {
-                    showAlert(
-                        'Transaksi Gagal',
-                        'Untuk Hanya Tarik Kosong, jumlah kosong harus lebih dari 0.',
-                        'error'
-                    );
-                    return;
-                }
-            } else {
-                if (newQty <= 0) {
-                    showAlert(
-                        'Transaksi Gagal',
-                        'Jumlah tabung isi harus lebih dari 0.',
-                        'error'
-                    );
-                    return;
-                }
-            }
 
-            if (mode === 'tukar' && newQtyKosong <= 0) {
-                showAlert(
-                    'Transaksi Gagal',
-                    'Untuk Tukar + Kirim Isi, jumlah tabung kosong harus lebih dari 0.',
-                    'error'
-                );
-                return;
-            }
+    if (
+        !pangId ||
+        trxPangkalanId !== pangId
+    ) {
+        showAlert(
+            'Akses Ditolak',
+            'Transaksi ini bukan milik pangkalan Anda.',
+            'error'
+        );
+        return;
+    }
 
-            if (mode === 'kirim_isi' && newQtyKosong !== 0) {
-                showAlert(
-                    'Transaksi Gagal',
-                    'Mode Kirim Isi Saja harus memiliki tabung kosong = 0.',
-                    'error'
-                );
-                return;
-            }
 
-            if (mode === 'tarik_kosong') {
-                newBayar = 0;
-            }
+    const customer =
+        (db.customers || []).find(
+            c => c.id === trx.customerId
+        );
 
-            const totalBaru =
-                mode === 'tarik_kosong'
-                    ? 0
-                    : newQty * newHarga;
 
-            if (newBayar > totalBaru) {
-                showAlert(
-                    'Pembayaran Tidak Valid',
-                    'Jumlah pembayaran tidak boleh melebihi total tagihan.',
-                    'error'
-                );
-                return;
-            }
+    const mode =
+        document.querySelector(
+            'input[name="editTrxMode"]:checked'
+        )?.value ||
+        'tukar';
 
-            // Validasi stok isi pangkalan hanya untuk transaksi
-            // yang memang mengirim tabung isi.
-            if (mode !== 'tarik_kosong') {
-                const totalAlokasi =
-                    (db.allocations || [])
-                        .filter(a => a.pangkalanId === pangId)
-                        .reduce(
-                            (sum, a) =>
-                                sum + Number(a.isi3kg || 0),
-                            0
-                        );
 
-                const totalTerjualLain =
-                    (db.transactions || [])
-                        .filter(t =>
-                            t.pangkalanId === pangId &&
-                            t.id !== trxId &&
-                            isActiveTransaction(t)
-                        )
-                        .reduce(
-                            (sum, t) =>
-                                sum + Number(t.qty3kg || 0),
-                            0
-                        );
+    const newDate =
+        document.getElementById('editTrxDate').value;
 
-                const stokTersediaUntukTransaksi =
-                    Math.max(
-                        0,
-                        totalAlokasi - totalTerjualLain
-                    );
 
-                if (newQty > stokTersediaUntukTransaksi) {
-                    showAlert(
-                        'Stok Tidak Mencukupi',
-                        `Jumlah tabung isi baru ${newQty} melebihi stok yang tersedia untuk transaksi ini (${stokTersediaUntukTransaksi} tabung).`,
-                        'error'
-                    );
-                    return;
-                }
-            }
+    const newQty =
+        Math.max(
+            0,
+            Number(
+                document.getElementById('editTrxQty').value || 0
+            )
+        );
 
-            // Untuk tarik kosong/tukar, jumlah kosong tidak boleh
-            // melebihi stok kosong aktual warung.
-            if (newQtyKosong > 0) {
-                const stokWarung =
-                    getWarungInventory(trx.customerId);
 
-                const stokKosongAktual =
-                    Number(
-                        stokWarung.estimasiStokKosongWarung || 0
-                    ) +
-                    Number(trx.qtyKosongDiambil || 0);
+    const newQtyKosong =
+        Math.max(
+            0,
+            Number(
+                document.getElementById('editTrxQtyKosong').value || 0
+            )
+        );
 
-                if (newQtyKosong > stokKosongAktual) {
-                    showAlert(
-                        'Stok Kosong Tidak Mencukupi',
-                        `Stok kosong warung yang tersedia untuk transaksi ini hanya ${stokKosongAktual} unit.`,
-                        'error'
-                    );
-                    return;
-                }
-            }
 
-            const totalHpp =
-                mode === 'tarik_kosong'
-                    ? 0
-                    : newQty * newHpp;
+    const newHpp =
+        Math.max(
+            0,
+            Number(
+                document.getElementById('editTrxHpp').value || 0
+            )
+        );
 
-            const profit =
-                totalBaru - totalHpp;
 
-            trx.date =
-                newDate;
+    const newHarga =
+        Math.max(
+            0,
+            Number(
+                document.getElementById('editTrxHarga').value || 0
+            )
+        );
 
-            trx.qty3kg =
-                mode === 'tarik_kosong'
-                    ? 0
-                    : newQty;
 
-            trx.qtyKosongDiambil =
-                newQtyKosong;
+    const newBayarInput =
+        document.getElementById('editTrxBayar');
 
-            trx.modePenukaran =
-                mode;
 
-            trx.jenisTransaksi =
-                mode === 'tarik_kosong'
-                    ? 'tarik_kosong'
-                    : mode === 'kirim_isi'
-                        ? 'kirim_isi'
-                        : 'penukaran';
+    let newBayar =
+        Math.max(
+            0,
+            Number(
+                newBayarInput?.value || 0
+            )
+        );
 
-            trx.modalPerTabung =
-                mode === 'tarik_kosong'
-                    ? 0
-                    : newHpp;
 
-            trx.hargaJual =
-                mode === 'tarik_kosong'
-                    ? 0
-                    : newHarga;
+    const newCatatan =
+        document.getElementById('editTrxCatatan').value.trim();
 
-            trx.hargaJualPerTabung =
-                mode === 'tarik_kosong'
-                    ? 0
-                    : newHarga;
 
-            trx.totalHpp =
-                totalHpp;
+    // ========================================================
+    // VALIDASI TANGGAL
+    // ========================================================
 
-            trx.profit =
-                profit;
+    if (!newDate) {
+        showAlert(
+            'Transaksi Gagal',
+            'Tanggal transaksi wajib diisi.',
+            'error'
+        );
+        return;
+    }
 
-            trx.totalHarga =
-                totalBaru;
 
-            trx.bayar =
-                newBayar;
+    // ========================================================
+    // VALIDASI JUMLAH FISIK
+    // ========================================================
 
-            trx.statusBayar =
-                newBayar >= totalBaru
-                    ? 'lunas'
-                    : 'belum_lunas';
+    if (mode === 'tarik_kosong') {
 
-            trx.catatan =
-                newCatatan ||
-                (
-                    mode === 'tarik_kosong'
-                        ? 'Hanya Tarik Tabung Kosong'
-                        : mode === 'kirim_isi'
-                            ? 'Kirim Tabung Isi Saja'
-                            : 'Penukaran Tabung Kosong & Pengiriman Tabung Isi'
-                );
-
-            trx.updatedAt =
-                new Date().toISOString();
-
-            // Jika transaksi berasal dari permintaan Warung, Edit harus
-            // mengubah kejadian yang sama, bukan membuat perhitungan terpisah.
-            if (trx.reportId) {
-                syncWarungReportFromTransactions(trx.reportId, db);
-            }
-
-            saveDB(db);
-
-            closeModal();
-            render();
-
+        if (newQtyKosong <= 0) {
             showAlert(
-                'Transaksi Diperbarui',
-                `Histori transaksi ${customer?.name || trx.customerName || 'pelanggan'} berhasil diperbarui.`
+                'Transaksi Gagal',
+                'Untuk Hanya Tarik Kosong, jumlah kosong harus lebih dari 0.',
+                'error'
             );
+            return;
         }
+
+        // Isi memang harus 0.
+        if (newQty !== 0) {
+            showAlert(
+                'Transaksi Gagal',
+                'Mode Hanya Tarik Kosong tidak boleh mengirim tabung isi.',
+                'error'
+            );
+            return;
+        }
+
+    } else {
+
+        if (newQty <= 0) {
+            showAlert(
+                'Transaksi Gagal',
+                'Jumlah tabung isi harus lebih dari 0.',
+                'error'
+            );
+            return;
+        }
+    }
+
+
+    // ========================================================
+    // VALIDASI TUKAR
+    // ========================================================
+
+    if (
+        mode === 'tukar' &&
+        newQtyKosong <= 0
+    ) {
+        showAlert(
+            'Transaksi Gagal',
+            'Untuk Tukar + Kirim Isi, jumlah tabung kosong harus lebih dari 0.',
+            'error'
+        );
+        return;
+    }
+
+
+    // ========================================================
+    // VALIDASI KIRIM ISI SAJA
+    // ========================================================
+
+    if (
+        mode === 'kirim_isi' &&
+        newQtyKosong !== 0
+    ) {
+        showAlert(
+            'Transaksi Gagal',
+            'Mode Kirim Isi Saja harus memiliki tabung kosong = 0.',
+            'error'
+        );
+        return;
+    }
+
+
+    // ========================================================
+    // PENTING:
+    // TIDAK ADA LAGI:
+    //
+    // if (mode === 'tarik_kosong') {
+    //     newBayar = 0;
+    // }
+    //
+    // Pembayaran tetap mempertahankan nilai input admin.
+    // ========================================================
+
+
+    // ========================================================
+    // TOTAL TRANSAKSI
+    // ========================================================
+
+    const totalBaru =
+        mode === 'tarik_kosong'
+            ? 0
+            : newQty * newHarga;
+
+
+    // ========================================================
+    // VALIDASI PEMBAYARAN
+    //
+    // Hanya Tarik Kosong:
+    // pembayaran boleh > 0 karena pembayaran tidak dianggap
+    // sebagai nilai penjualan isi pada transaksi ini.
+    //
+    // Mode normal:
+    // pembayaran tidak boleh melebihi tagihan.
+    // ========================================================
+
+    if (
+        mode !== 'tarik_kosong' &&
+        newBayar > totalBaru
+    ) {
+        showAlert(
+            'Pembayaran Tidak Valid',
+            'Jumlah pembayaran tidak boleh melebihi total tagihan.',
+            'error'
+        );
+        return;
+    }
+
+
+    // ========================================================
+    // VALIDASI STOK ISI PANGKALAN
+    //
+    // Hanya berlaku jika memang mengirim isi.
+    // ========================================================
+
+    if (mode !== 'tarik_kosong') {
+
+        const totalAlokasi =
+            (db.allocations || [])
+                .filter(
+                    a =>
+                        a.pangkalanId === pangId
+                )
+                .reduce(
+                    (sum, a) =>
+                        sum +
+                        Number(a.isi3kg || 0),
+                    0
+                );
+
+
+        const totalTerjualLain =
+            (db.transactions || [])
+                .filter(
+                    t =>
+                        t.pangkalanId === pangId &&
+                        t.id !== trxId &&
+                        isActiveTransaction(t)
+                )
+                .reduce(
+                    (sum, t) =>
+                        sum +
+                        Number(t.qty3kg || 0),
+                    0
+                );
+
+
+        const stokTersediaUntukTransaksi =
+            Math.max(
+                0,
+                totalAlokasi -
+                totalTerjualLain
+            );
+
+
+        if (
+            newQty >
+            stokTersediaUntukTransaksi
+        ) {
+            showAlert(
+                'Stok Tidak Mencukupi',
+                `Jumlah tabung isi baru ${newQty} melebihi stok yang tersedia untuk transaksi ini (${stokTersediaUntukTransaksi} tabung).`,
+                'error'
+            );
+            return;
+        }
+    }
+
+
+    // ========================================================
+    // VALIDASI STOK KOSONG WARUNG
+    // ========================================================
+
+    if (newQtyKosong > 0) {
+
+        const stokWarung =
+            getWarungInventory(
+                trx.customerId
+            );
+
+
+        const stokKosongAktual =
+            Number(
+                stokWarung.estimasiStokKosongWarung || 0
+            ) +
+            Number(
+                trx.qtyKosongDiambil || 0
+            );
+
+
+        if (
+            newQtyKosong >
+            stokKosongAktual
+        ) {
+            showAlert(
+                'Stok Kosong Tidak Mencukupi',
+                `Stok kosong warung yang tersedia untuk transaksi ini hanya ${stokKosongAktual} unit.`,
+                'error'
+            );
+            return;
+        }
+    }
+
+
+    // ========================================================
+    // HPP
+    // ========================================================
+
+    const totalHpp =
+        mode === 'tarik_kosong'
+            ? 0
+            : newQty * newHpp;
+
+
+    const profit =
+        totalBaru -
+        totalHpp;
+
+
+    // ========================================================
+    // SIMPAN PERUBAHAN
+    // ========================================================
+
+    trx.date =
+        newDate;
+
+
+    trx.qty3kg =
+        mode === 'tarik_kosong'
+            ? 0
+            : newQty;
+
+
+    trx.qtyKosongDiambil =
+        newQtyKosong;
+
+
+    trx.modePenukaran =
+        mode;
+
+
+    trx.jenisTransaksi =
+        mode === 'tarik_kosong'
+            ? 'tarik_kosong'
+            : mode === 'kirim_isi'
+                ? 'kirim_isi'
+                : 'penukaran';
+
+
+    trx.modalPerTabung =
+        mode === 'tarik_kosong'
+            ? 0
+            : newHpp;
+
+
+    trx.hargaJual =
+        mode === 'tarik_kosong'
+            ? 0
+            : newHarga;
+
+
+    trx.hargaJualPerTabung =
+        mode === 'tarik_kosong'
+            ? 0
+            : newHarga;
+
+
+    trx.totalHpp =
+        totalHpp;
+
+
+    trx.profit =
+        profit;
+
+
+    trx.totalHarga =
+        totalBaru;
+
+
+    // ========================================================
+    // PEMBAYARAN
+    //
+    // NILAI INPUT ADMIN SELALU DISIMPAN.
+    // Termasuk mode Hanya Tarik Kosong.
+    // ========================================================
+
+    trx.bayar =
+        newBayar;
+
+
+    trx.statusBayar =
+        newBayar > 0
+            ? 'lunas'
+            : 'belum_lunas';
+
+
+    trx.catatan =
+        newCatatan ||
+        (
+            mode === 'tarik_kosong'
+                ? 'Hanya Tarik Tabung Kosong'
+                : mode === 'kirim_isi'
+                    ? 'Kirim Tabung Isi Saja'
+                    : 'Penukaran Tabung Kosong & Pengiriman Tabung Isi'
+        );
+
+
+    trx.updatedAt =
+        new Date().toISOString();
+
+
+    // ========================================================
+    // SINKRONISASI LAPORAN WARUNG
+    // Hanya jika transaksi memang mempunyai reportId.
+    // ========================================================
+
+    if (trx.reportId) {
+        syncWarungReportFromTransactions(
+            trx.reportId,
+            db
+        );
+    }
+
+
+    // ========================================================
+    // SIMPAN DATABASE
+    // ========================================================
+
+    saveDB(db);
+
+
+    closeModal();
+    render();
+
+
+    showAlert(
+        'Transaksi Diperbarui',
+        `Histori transaksi ${
+            customer?.name ||
+            trx.customerName ||
+            'pelanggan'
+        } berhasil diperbarui.`
+    );
+}
 
         function openPayDebtModal(trxId) {
             const db = getDB();
