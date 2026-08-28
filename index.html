@@ -5390,7 +5390,7 @@
                         sourceId: customerId,
                         date: new Date().toISOString().slice(0, 10),
                         emptyQty: Number(inv.estimasiStokKosongWarung || 0),
-                        note: `Stok kosong ${customerName} dikembalikan ke pangkalan saat warung dihapus`
+                       note: `Stok kosong ${warungName} dikembalikan ke pangkalan saat warung dihapus`
                     });
                 }
                 localStorage.setItem(DB_KEY, JSON.stringify(normalizeDB(db)));
