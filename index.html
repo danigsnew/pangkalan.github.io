@@ -3623,56 +3623,117 @@
             `);
         }
 
-        async function deletePangkalan(id) {
-            const db = getDB();
-            const pangIndex = db.pangalans.findIndex(p => String(p.id) === String(id));
-            if (pangIndex === -1) return;
+       async function deletePangkalan(id) {
+    const db = getDB();
+    const pangIndex = db.pangalans.findIndex(
+        p => String(p.id) === String(id)
+    );
 
-            const pang = db.pangalans[pangIndex];
-            const deletedName = pang.name;
+    if (pangIndex === -1) return;
 
-            try {
-                if (IS_EMBEDDED_PREVIEW) throw new Error('Penghapusan pangkalan tidak dapat dilakukan pada preview.');
+    const pang = db.pangalans[pangIndex];
+    const deletedName = pang.name;
 
-                const payload = JSON.stringify({
-                    action: 'deletePangkalan',
-                    pangkalanId: id,
-                    actor: db.currentUser ? {
-                        role: db.currentUser.role || null,
-                        id: db.currentUser.id || null,
-                        pangkalanId: db.currentUser.pangkalanId || null,
-                        name: db.currentUser.name || null
-                    } : null
-                });
-
-                await fetch(API_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    cache: 'no-store',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: payload
-                });
-
-                await new Promise(resolve => setTimeout(resolve, 700));
-                const loaded = await loadDBFromCloud();
-                if (!loaded) throw new Error('Database pusat tidak dapat diverifikasi setelah penghapusan.');
-
-                const verifyDB = getDB();
-                const stillExists = (verifyDB.pangalans || []).some(p => String(p.id) === String(id));
-                if (stillExists) {
-                    throw new Error('Pangkalan masih tercatat di database pusat. Penghapusan belum berhasil.');
-                }
-
-                closeModal();
-                showAlert('Pangkalan Dihapus', `Pangkalan ${deletedName} berhasil dihapus permanen dari database pusat.`);
-                render();
-            } catch (error) {
-                console.error('Gagal menghapus pangkalan:', error);
-                await loadDBFromCloud();
-                render();
-                showAlert('Gagal Menghapus', error.message || 'Penghapusan pangkalan gagal diproses.', 'error');
-            }
+    try {
+        if (IS_EMBEDDED_PREVIEW) {
+            throw new Error(
+                'Penghapusan pangkalan tidak dapat dilakukan pada preview.'
+            );
         }
+
+        // ============================================================
+        // PENTING:
+        // Hentikan antrean auto-save browser agar database lama
+        // tidak menimpa hasil penghapusan pangkalan.
+        // ============================================================
+        clearTimeout(cloudSaveTimer);
+        cloudSaveTimer = null;
+        cloudSavePending = null;
+
+        // Tunggu save yang sedang berjalan selesai.
+        for (let i = 0; i < 50 && cloudSaveInFlight; i++) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        const payload = JSON.stringify({
+            action: 'deletePangkalan',
+            pangkalanId: id,
+            actor: db.currentUser ? {
+                role: db.currentUser.role || null,
+                id: db.currentUser.id || null,
+                pangkalanId: db.currentUser.pangkalanId || null,
+                name: db.currentUser.name || null
+            } : null
+        });
+
+        // ============================================================
+        // Hapus langsung dari DATABASE PUSAT
+        // ============================================================
+        await fetch(API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            cache: 'no-store',
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: payload
+        });
+
+        // Beri waktu Apps Script menyelesaikan write + flush.
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // ============================================================
+        // VERIFIKASI ULANG DARI DATABASE PUSAT
+        // ============================================================
+        const loaded = await loadDBFromCloud();
+
+        if (!loaded) {
+            throw new Error(
+                'Database pusat tidak dapat diverifikasi setelah penghapusan.'
+            );
+        }
+
+        const verifyDB = getDB();
+
+        const stillExists = (verifyDB.pangalans || []).some(
+            p => String(p.id) === String(id)
+        );
+
+        if (stillExists) {
+            throw new Error(
+                'Pangkalan masih tercatat di database pusat. Penghapusan belum berhasil.'
+            );
+        }
+
+        // ============================================================
+        // BERHASIL
+        // ============================================================
+        closeModal();
+
+        showAlert(
+            'Pangkalan Dihapus',
+            `Pangkalan ${deletedName} berhasil dihapus permanen dari database pusat.`
+        );
+
+        render();
+
+    } catch (error) {
+        console.error(
+            'Gagal menghapus pangkalan:',
+            error
+        );
+
+        await loadDBFromCloud();
+        render();
+
+        showAlert(
+            'Gagal Menghapus',
+            error.message ||
+            'Penghapusan pangkalan gagal diproses.',
+            'error'
+        );
+    }
+}
 
         function ensureEmptyAgencyReceiptData() {
             const db = getDB();
