@@ -5594,17 +5594,22 @@
                 return;
             }
 
-            if (qtyKosong > 0) {
-                const stokWarung = getWarungInventory(cust.id);
-                if (qtyKosong > Number(stokWarung.estimasiStokKosongWarung || 0)) {
-                    showAlert(
-                        'Stok Kosong Tidak Mencukupi',
-                        `Stok kosong ${cust.name} saat ini ${Number(stokWarung.estimasiStokKosongWarung || 0)} unit.`,
-                        'error'
-                    );
-                    return;
-                }
-            }
+            /*
+             * V8.10.4 — PENARIKAN KOSONG LANGSUNG OLEH ADMIN
+             *
+             * Jangan memvalidasi qtyKosong terhadap stok kosong Warung.
+             * Angka stok kosong di akun Warung adalah stok yang sudah
+             * tercatat di ledger, sedangkan Admin dapat menerima tabung
+             * kosong secara fisik saat ini meskipun ledger masih 0.
+             *
+             * Contoh:
+             * - Stok kosong tercatat di Warung = 0
+             * - Warung membawa 5 tabung kosong secara fisik
+             * - Admin dapat langsung mencatat 5 kosong ditarik + 5 isi dikirim
+             *
+             * Transaksi ini menjadi sumber ledger berikutnya; jangan blokir
+             * transaksi hanya karena saldo kosong sebelumnya belum tercatat.
+             */
 
             const isTarikKosongSaja = qtyIsi <= 0 && qtyKosong > 0;
             const total = isTarikKosongSaja ? 0 : qtyIsi * hargaJual;
