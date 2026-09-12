@@ -3441,51 +3441,197 @@
         }
 
         async function executeResetAllPangkalanData() {
-            const db = getDB();
-            const actor = db.currentUser ? {
-                role: db.currentUser.role || null,
-                id: db.currentUser.id || null,
-                pangkalanId: db.currentUser.pangkalanId || null,
-                name: db.currentUser.name || null
+            const currentDB = getDB();
+            const actor = currentDB.currentUser ? {
+                role: currentDB.currentUser.role || null,
+                id: currentDB.currentUser.id || null,
+                pangkalanId: currentDB.currentUser.pangkalanId || null,
+                name: currentDB.currentUser.name || null
             } : null;
 
             try {
-                if (IS_EMBEDDED_PREVIEW) throw new Error('Reset database tidak dapat dilakukan pada preview.');
+                if (IS_EMBEDDED_PREVIEW) {
+                    throw new Error('Reset database tidak dapat dilakukan pada preview.');
+                }
 
-                // Hentikan antrean save browser agar tidak menimpa hasil reset.
+                // ============================================================
+                // V8.10.6 - RESET TOTAL DARI SATU SUMBER KEBENARAN
+                // ============================================================
+                // Sebelumnya reset memakai action khusus `resetAllPangkalanData`
+                // dengan mode no-cors. Frontend tidak pernah bisa memastikan
+                // apakah Apps Script benar-benar menghapus data. Akibatnya data
+                // yang masih ada di Google Sheet kembali muncul saat reload.
+                //
+                // Sekarang reset dilakukan melalui jalur saveDB yang sudah
+                // terbukti CORS + response JSON. Kita kosongkan seluruh ledger
+                // operasional yang dikenal aplikasi, lalu kirim snapshot bersih
+                // ke database pusat. Akun Super Admin dan field konfigurasi lain
+                // yang tidak termasuk ledger tetap dipertahankan.
+
+                // 1. Batalkan seluruh antrean auto-save agar snapshot lama tidak
+                //    menimpa snapshot hasil reset.
                 clearTimeout(cloudSaveTimer);
                 cloudSaveTimer = null;
                 cloudSavePending = null;
-                for (let i = 0; i < 50 && cloudSaveInFlight; i++) {
+
+                // 2. Tunggu request save lama selesai.
+                for (let i = 0; i < 100 && cloudSaveInFlight; i++) {
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
 
-                await fetch(API_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    cache: 'no-store',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ action: 'resetAllPangkalanData', actor })
+                if (cloudSaveInFlight) {
+                    throw new Error('Masih ada proses sinkronisasi database yang belum selesai. Coba ulangi reset.');
+                }
+
+                // 3. Ambil database TERBARU dari pusat sebelum membuat snapshot
+                //    reset. Jangan menggunakan cache browser sebagai sumber reset.
+                const loadedBeforeReset = await loadDBFromCloud();
+                if (!loadedBeforeReset) {
+                    throw new Error('Database pusat tidak dapat dibaca sebelum reset. Reset dibatalkan agar data tidak berisiko tertimpa.');
+                }
+
+                const resetDB = getDB();
+
+                // 4. Bersihkan SEMUA koleksi operasional yang digunakan aplikasi.
+                const operationalArrayKeys = [
+                    'pangalans',
+                    'customers',
+                    'allocations',
+                    'emptyReturnsToAgency',
+                    'transactions',
+                    'warungSales',
+                    'warungReports',
+                    'pangkalanStockAdjustments',
+                    'payments',
+                    'debts',
+                    'customerTransactions',
+                    'emptyAgencyReceipts',
+                    'deletedCustomerIds',
+                    'warungStockReturns'
+                ];
+
+                operationalArrayKeys.forEach(key => {
+                    resetDB[key] = [];
                 });
 
+                // 5. Semua stok fisik yang berasal dari data operasional juga
+                //    kembali nol. Akun/config Super Admin tetap dipertahankan.
+                resetDB.superAdminStock = {
+                    isi3kg: 0,
+                    kosong3kg: 0
+                };
+
+                // Jangan biarkan ledger setoran lama dimigrasikan kembali.
+                resetDB.emptyAgencyReceiptMigrationReset = true;
+                resetDB.updatedAt = new Date().toISOString();
+
+                // 6. currentUser hanya untuk sesi browser. saveDBToCloud memang
+                //    mengirim currentUser=null, tetapi tetap kita pertahankan di
+                //    cache lokal supaya Super Admin tidak langsung logout.
+                resetDB.currentUser = currentDB.currentUser || null;
+
+                // Simpan snapshot reset secara lokal lebih dulu.
+                normalizeDB(resetDB);
+                localStorage.setItem(DB_KEY, JSON.stringify(resetDB));
+
+                // Pastikan tidak ada pending snapshot lama.
+                cloudSavePending = null;
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = null;
+
+                // 7. TULIS SNAPSHOT BERSIH KE DATABASE PUSAT melalui saveDB.
+                const saveResult = await saveDBToCloud(resetDB);
+                if (!saveResult || saveResult.success !== true) {
+                    throw new Error(saveResult?.message || 'Server tidak mengonfirmasi reset database.');
+                }
+
+                // 8. Beri waktu Apps Script flush ke Google Sheet.
                 await new Promise(resolve => setTimeout(resolve, 900));
-                const loaded = await loadDBFromCloud();
-                if (!loaded) throw new Error('Database pusat tidak dapat diverifikasi setelah reset.');
-                const verifyDB = getDB();
-                const branchKeys = ['pangalans','customers','allocations','transactions','warungSales','warungReports','payments','debts','customerTransactions','emptyReturnsToAgency','emptyAgencyReceipts','pangkalanStockAdjustments','deletedCustomerIds'];
-                const remaining = branchKeys.reduce((sum, key) => sum + ((verifyDB[key] || []).length || 0), 0);
+
+                // 9. Verifikasi langsung dari database pusat.
+                //    Retry beberapa kali karena Google Sheet/Apps Script dapat
+                //    membutuhkan waktu singkat untuk menyelesaikan write.
+                const branchKeys = [
+                    'pangalans',
+                    'customers',
+                    'allocations',
+                    'transactions',
+                    'warungSales',
+                    'warungReports',
+                    'payments',
+                    'debts',
+                    'customerTransactions',
+                    'emptyReturnsToAgency',
+                    'emptyAgencyReceipts',
+                    'pangkalanStockAdjustments',
+                    'deletedCustomerIds',
+                    'warungStockReturns'
+                ];
+
+                let verifyDB = null;
+                let remaining = Infinity;
+
+                for (let attempt = 1; attempt <= 5; attempt++) {
+                    const loaded = await loadDBFromCloud();
+                    if (!loaded) {
+                        if (attempt === 5) {
+                            throw new Error('Database pusat tidak dapat diverifikasi setelah reset.');
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 700));
+                        continue;
+                    }
+
+                    verifyDB = getDB();
+                    remaining = branchKeys.reduce(
+                        (sum, key) => sum + ((verifyDB[key] || []).length || 0),
+                        0
+                    );
+
+                    const stockIsi = Number(verifyDB.superAdminStock?.isi3kg || 0);
+                    const stockKosong = Number(verifyDB.superAdminStock?.kosong3kg || 0);
+
+                    if (remaining === 0 && stockIsi === 0 && stockKosong === 0) {
+                        break;
+                    }
+
+                    if (attempt < 5) {
+                        await new Promise(resolve => setTimeout(resolve, 700));
+                    }
+                }
+
                 if (remaining !== 0) {
                     throw new Error(`Reset belum bersih. Masih ada ${remaining} record operasional pada database pusat.`);
                 }
 
+                const finalStockIsi = Number(verifyDB?.superAdminStock?.isi3kg || 0);
+                const finalStockKosong = Number(verifyDB?.superAdminStock?.kosong3kg || 0);
+
+                if (finalStockIsi !== 0 || finalStockKosong !== 0) {
+                    throw new Error(
+                        `Reset belum sempurna. Stok pusat masih tersisa: isi ${finalStockIsi}, kosong ${finalStockKosong}.`
+                    );
+                }
+
+                // Hasil verifikasi pusat menjadi cache terakhir browser.
+                verifyDB.currentUser = currentDB.currentUser || null;
+                localStorage.setItem(DB_KEY, JSON.stringify(normalizeDB(verifyDB)));
+
                 closeModal();
-                showAlert('Database Bersih', 'Seluruh data operasional pangkalan berhasil direset. Database siap dimulai dari nol.');
+                showAlert(
+                    'Database Bersih',
+                    'Seluruh data operasional pangkalan berhasil direset dari database pusat. Sistem siap dimulai dari nol.'
+                );
                 render();
+
             } catch (error) {
                 console.error('Gagal reset database:', error);
                 await loadDBFromCloud();
                 render();
-                showAlert('Reset Gagal', error.message || 'Reset database gagal diproses.', 'error');
+                showAlert(
+                    'Reset Gagal',
+                    error.message || 'Reset database gagal diproses.',
+                    'error'
+                );
             }
         }
 
